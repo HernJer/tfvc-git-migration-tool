@@ -237,7 +237,7 @@ try {
 
     $summary | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $verifyDir 'summary.json') -Encoding UTF8
 
-    Write-MigrationLog "" -LogFile $logFile
+    Write-MigrationLog "-------------------------------" -LogFile $logFile
     Write-MigrationLog "=== Verification complete ===" -LogFile $logFile
     Write-MigrationLog "Overall result: $overall" -LogFile $logFile
     Write-MigrationLog "  Inventory:  $invResult"  -LogFile $logFile

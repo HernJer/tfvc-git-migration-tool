@@ -132,22 +132,62 @@ foreach ($cs in $changesets) {
         $serverPath = $change.item.path
         if (-not $serverPath) { continue }
 
-        # Skip folders (safely checking properties due to StrictMode)
-        if ($null -ne $change.item.psobject.Properties['isFolder'] -and $change.item.isFolder -eq $true) { continue }
-        if ($null -ne $change.item.psobject.Properties['gitObjectType'] -and $change.item.gitObjectType -eq 'tree') { continue }
+        $isFolder = ($null -ne $change.item.psobject.Properties['isFolder'] -and $change.item.isFolder -eq $true)
+        $isTree = ($null -ne $change.item.psobject.Properties['gitObjectType'] -and $change.item.gitObjectType -eq 'tree')
+        $changeType = Get-PrimaryChangeType -RawChangeType $change.changeType
+
+        if ($isFolder -or $isTree) {
+            # Check if this folder change affects any of our mappings
+            $affectedMappings = @()
+            foreach ($m in $config.sourceMappings) {
+                if ($serverPath -eq $m.tfvcPath -or $serverPath.StartsWith("$($m.tfvcPath)/", 'CurrentCultureIgnoreCase')) {
+                    $affectedMappings += $m
+                } elseif ($m.tfvcPath.StartsWith("$serverPath/", 'CurrentCultureIgnoreCase')) {
+                    $affectedMappings += $m
+                }
+            }
+            if ($affectedMappings.Count -gt 0) {
+                if ($changeType -in @('add', 'branch', 'rename', 'undelete')) {
+                    foreach ($m in $affectedMappings) {
+                        $fetchPath = if ($m.tfvcPath.StartsWith("$serverPath/", 'CurrentCultureIgnoreCase')) { $m.tfvcPath } else { $serverPath }
+                        $items = Get-TfvcItems -Connection $conn -ScopePath $fetchPath -ChangesetVersion $cs.changesetId -RecursionLevel 'Full'
+                        foreach ($item in $items) {
+                            if ($null -ne $item.psobject.Properties['isFolder'] -and $item.isFolder -eq $true) { continue }
+                            if ($null -ne $item.psobject.Properties['gitObjectType'] -and $item.gitObjectType -eq 'tree') { continue }
+                            $destPath = ConvertTo-RelativePath -ServerPath $item.path -TfvcBase $m.tfvcPath -DestinationPrefix $(if ($m.destinationPath) { $m.destinationPath } else { '' })
+                            if ($destPath) {
+                                $scopedChanges.Add([PSCustomObject]@{ changeType = 'add'; serverPath = $item.path; destinationPath = $destPath; sourceServerPath = $null })
+                            }
+                        }
+                    }
+                } elseif ($changeType -eq 'delete') {
+                    foreach ($m in $affectedMappings) {
+                        $fetchPath = if ($m.tfvcPath.StartsWith("$serverPath/", 'CurrentCultureIgnoreCase')) { $m.tfvcPath } else { $serverPath }
+                        $prev = $cs.changesetId - 1
+                        if ($prev -gt 0) {
+                            $items = Get-TfvcItems -Connection $conn -ScopePath $fetchPath -ChangesetVersion $prev -RecursionLevel 'Full'
+                            foreach ($item in $items) {
+                                if ($null -ne $item.psobject.Properties['isFolder'] -and $item.isFolder -eq $true) { continue }
+                                if ($null -ne $item.psobject.Properties['gitObjectType'] -and $item.gitObjectType -eq 'tree') { continue }
+                                $destPath = ConvertTo-RelativePath -ServerPath $item.path -TfvcBase $m.tfvcPath -DestinationPrefix $(if ($m.destinationPath) { $m.destinationPath } else { '' })
+                                if ($destPath) {
+                                    $scopedChanges.Add([PSCustomObject]@{ changeType = 'delete'; serverPath = $item.path; destinationPath = $destPath; sourceServerPath = $null })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            continue
+        }
 
         # Must be under one of our configured paths
         $mapping = Find-SourceMapping -ServerPath $serverPath
         if (-not $mapping) { continue }
 
-        $destPath = ConvertTo-RelativePath `
-            -ServerPath $serverPath `
-            -TfvcBase $mapping.tfvcPath `
-            -DestinationPrefix $(if ($mapping.destinationPath) { $mapping.destinationPath } else { '' })
-
+        $destPath = ConvertTo-RelativePath -ServerPath $serverPath -TfvcBase $mapping.tfvcPath -DestinationPrefix $(if ($mapping.destinationPath) { $mapping.destinationPath } else { '' })
         if (-not $destPath) { continue }
 
-        $changeType = Get-PrimaryChangeType -RawChangeType $change.changeType
         $sourceServerPath = $null
         if ($changeType -eq 'rename' -and $null -ne $change.psobject.Properties['sourceServerItem']) {
             if ($null -ne $change.sourceServerItem.psobject.Properties['path']) {
@@ -162,6 +202,21 @@ foreach ($cs in $changesets) {
             sourceServerPath = $sourceServerPath
         })
     }
+
+    # Deduplicate changes for the same file in the same changeset
+    $uniqueChanges = @{}
+    foreach ($c in $scopedChanges) {
+        if ($c.changeType -eq 'delete') {
+            $uniqueChanges[$c.destinationPath] = $c
+        } elseif (-not $uniqueChanges.ContainsKey($c.destinationPath)) {
+            $uniqueChanges[$c.destinationPath] = $c
+        } else {
+            if ($c.changeType -ne 'add') {
+                $uniqueChanges[$c.destinationPath] = $c
+            }
+        }
+    }
+    $scopedChanges = $uniqueChanges.Values
 
     $wiList = @($workItems | ForEach-Object {
         [PSCustomObject]@{ id = $_.id; title = $_.title }

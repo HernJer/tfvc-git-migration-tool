@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\TfvcApi.ps1"
 
 $config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
-$outputDir = $config.outputDir
+$outputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
 $logFile = Join-Path $outputDir 'migration-log.txt'
 $checkpointFile = Join-Path $outputDir 'replay-checkpoint.json'
 

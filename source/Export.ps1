@@ -21,7 +21,7 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\TfvcApi.ps1"
 
 $config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
-$outputDir = $config.outputDir
+$outputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
 if (-not (Test-Path $outputDir)) {
     New-Item -Path $outputDir -ItemType Directory -Force | Out-Null
 }

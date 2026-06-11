@@ -28,7 +28,7 @@ function Get-TruncatedHash {
 
 try {
     $config     = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-    $outputDir  = $config.outputDir
+    $outputDir  = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
     $verifyDir  = Join-Path $outputDir 'verification'
 
     $summary    = Get-Content (Join-Path $verifyDir 'summary.json') -Raw | ConvertFrom-Json

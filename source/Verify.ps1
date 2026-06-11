@@ -21,8 +21,8 @@ try {
     # -- Bootstrap ----------------------------------------------------
     . "$PSScriptRoot/TfvcApi.ps1"
 
-    $config    = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-    $outputDir = $config.outputDir
+    $config    = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
+    $outputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
     $repoPath  = Join-Path $outputDir 'git-repo'
     $verifyDir = Join-Path $outputDir 'verification'
     $tempDir   = Join-Path $verifyDir 'temp'
@@ -52,7 +52,9 @@ try {
         $items = Get-TfvcItems -Connection $conn -ScopePath $mapping.tfvcPath -RecursionLevel 'Full'
 
         foreach ($item in $items) {
-            if ($item.isFolder -eq $true) { continue }
+            # Skip folders safely
+            if ($null -ne $item.psobject.Properties['isFolder'] -and $item.isFolder -eq $true) { continue }
+            if ($null -ne $item.psobject.Properties['gitObjectType'] -and $item.gitObjectType -eq 'tree') { continue }
 
             $destPath = ConvertTo-RelativePath `
                 -ServerPath        $item.path `

@@ -96,9 +96,17 @@ function Find-SourceMapping {
 
 function Get-PrimaryChangeType {
     param([string]$RawChangeType)
-    # API returns e.g. "edit, encoding" - take the first token
-    $primary = ($RawChangeType -split ',')[0].Trim().ToLower()
-    $primary
+    $types = $RawChangeType -split ',' | ForEach-Object { $_.Trim() }
+    
+    if ($types -contains 'delete') { return 'delete' }
+    if ($types -contains 'sourcerename') { return 'delete' }
+    if ($types -contains 'rename') { return 'rename' }
+    if ($types -contains 'add') { return 'add' }
+    if ($types -contains 'branch') { return 'branch' }
+    if ($types -contains 'undelete') { return 'undelete' }
+    if ($types -contains 'merge') { return 'merge' }
+    
+    return 'edit'
 }
 
 # --- Enrich each changeset ---

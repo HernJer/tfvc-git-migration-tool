@@ -1,0 +1,25 @@
+{
+    "_instructions": [
+        "Copy this file to 'config.json' and fill in your values.",
+        "For separate repos: use one config per repo, one entry in sourceMappings with empty destinationPath.",
+        "For combined repo: use multiple entries in sourceMappings, each with a destinationPath prefix."
+    ],
+
+    "adoServerUrl": "https://tfs.company.com:8080/tfs",
+    "collection": "DefaultCollection",
+    "project": "MyProject",
+    "apiVersion": "7.0",
+    "pat": "",
+
+    "sourceMappings": [
+        {
+            "tfvcPath": "$/MyProject/Application1",
+            "destinationPath": ""
+        }
+    ],
+
+    "gitRemoteUrl": "https://github.com/your-org/your-repo.git",
+    "outputDir": "./migration-output",
+    "lfsThresholdBytes": 52428800,
+    "lfsPatterns": ["*.dll", "*.exe", "*.zip", "*.nupkg"]
+}

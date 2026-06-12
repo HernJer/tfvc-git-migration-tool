@@ -124,8 +124,15 @@ function Export-TfvcChangeset {
     foreach ($cs in $changesets) {
         $index++
 
-        # Progress
-        if ($index % 100 -eq 0 -or $index -eq 1 -or $index -eq $totalCount) {
+        # Live progress bar so a long run never looks frozen (each changeset is
+        # several API calls). The log keeps periodic text milestones.
+        $pct = if ($totalCount -gt 0) { [int](($index / $totalCount) * 100) } else { 100 }
+        Write-Progress -Activity 'Exporting TFVC changesets' `
+            -Status "Changeset $($cs.changesetId)  ($index / $totalCount)" `
+            -PercentComplete $pct
+
+        # Progress (persistent log)
+        if ($index % 25 -eq 0 -or $index -eq 1 -or $index -eq $totalCount) {
             Write-MigrationLog -Message "Processing changeset $($cs.changesetId)  ($index / $totalCount)" -LogFile $logFile
         }
 
@@ -265,6 +272,8 @@ function Export-TfvcChangeset {
                 ConvertTo-Json | Set-Content -Path $checkpointFile -Encoding UTF8
         }
     }
+
+    Write-Progress -Activity 'Exporting TFVC changesets' -Completed
 
     # --- Write output ---
 

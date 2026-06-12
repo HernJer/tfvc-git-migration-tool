@@ -21,6 +21,11 @@ function New-TfvcConnection {
         [string]$ApiVersion = "7.0"
     )
 
+    # Performance: raise the per-host connection pool (helps when many requests
+    # are in flight) and skip the Expect: 100-continue round-trip on each POST/GET.
+    [System.Net.ServicePointManager]::DefaultConnectionLimit = 100
+    [System.Net.ServicePointManager]::Expect100Continue = $false
+
     $server = $ServerUrl.TrimEnd('/')
     $headers = @{}
     if ($Pat) {
@@ -52,6 +57,11 @@ function Invoke-TfvcApi {
         [hashtable]$QueryParams = @{},
         [int]$MaxRetries = 3
     )
+
+    # Suppress the progress bar: in Windows PowerShell 5.1 it makes
+    # Invoke-RestMethod/Invoke-WebRequest dramatically slower. Function-scoped,
+    # so it auto-restores on return.
+    $ProgressPreference = 'SilentlyContinue'
 
     $params = @{} + $QueryParams
     $params['api-version'] = $Connection.ApiVersion
@@ -242,6 +252,10 @@ function Save-TfvcItemContent {
         [int]$ChangesetVersion = 0,
         [int]$MaxRetries = 3
     )
+
+    # Suppress the progress bar - this is the big one for downloads: in Windows
+    # PowerShell 5.1, Invoke-WebRequest -OutFile is many times slower with it on.
+    $ProgressPreference = 'SilentlyContinue'
 
     $qp = @{
         path          = $ServerPath

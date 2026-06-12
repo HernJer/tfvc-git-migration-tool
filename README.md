@@ -155,6 +155,14 @@ Merge two folders under sub-directories of `main`.
 
 Each branch is an **independent history**: for a given branch, only the changesets that touch its mapped folder(s) are replayed, in changeset order. A changeset that touches folders for two branches produces a commit on each. On `-Push`, **all** branches are pushed (`git push --all`). Verification compares each branch's HEAD against its own TFVC source.
 
+### Performance (large migrations)
+
+File downloads dominate the run time. To speed things up:
+
+- **`downloadConcurrency`** (config, default `8`) — number of files downloaded in parallel during replay and verify. Raise it (e.g. `16`–`32`) on a fast LAN connection to the TFS server; lower it if the server pushes back. Replay scales close to linearly with this for download-bound repos.
+- **Skip verify for the bulk run** with `tfvc2git -SkipVerify` — verification re-downloads and hashes every file, roughly doubling total I/O. Run it separately when you need the audit.
+- **Run on a machine close to the TFS server** — per-request latency is the limiting factor over a WAN.
+
 ---
 
 ## Step-by-Step Usage

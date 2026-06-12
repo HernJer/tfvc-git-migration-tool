@@ -229,6 +229,18 @@ Describe 'Branch mapping helpers (private)' {
     }
 }
 
+Describe 'Get-VisualStudioGitignore (private)' {
+    It 'returns a non-empty Visual Studio template with key patterns' {
+        InModuleScope $script:ModuleName {
+            $gi = Get-VisualStudioGitignore
+            $gi | Should -Match '\[Bb\]in/'
+            $gi | Should -Match '\.vs/'
+            # $tf/ must be literal (single-quoted here-string), not an expanded variable.
+            $gi | Should -Match ([regex]::Escape('$tf/'))
+        }
+    }
+}
+
 Describe 'Invoke-ParallelDownload (private)' {
     It 'returns without error (and opens no runspaces) for an empty item list' {
         InModuleScope $script:ModuleName {

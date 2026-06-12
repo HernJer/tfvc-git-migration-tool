@@ -189,6 +189,7 @@ location. Or choose where to save it:
             lfsThresholdBytes = 52428800
             lfsPatterns       = @('*.dll', '*.exe', '*.zip', '*.nupkg')
             downloadConcurrency = 8
+            addGitignore        = $true
         }
     }
     else {
@@ -264,6 +265,7 @@ location. Or choose where to save it:
             lfsThresholdBytes = $cfgLfsBytes
             lfsPatterns       = @($cfgLfsPatterns)
             downloadConcurrency = 8
+            addGitignore        = $true
         }
     }
 

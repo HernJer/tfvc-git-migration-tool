@@ -24,13 +24,24 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
-          $version = $tag.TrimStart('v')
-          if ($version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
-            throw "Tag '$tag' does not yield a valid version (got '$version'). Use vN.N.N."
+          $tag   = "${{ github.ref_name }}"
+          $ver   = $tag.TrimStart('v')
+          $parts = $ver -split '-', 2
+          $core  = $parts[0]
+          $label = if ($parts.Count -gt 1) { $parts[1] } else { '' }
+          if ($core -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+            throw "Tag '$tag' must be vN.N.N or vN.N.N-LABEL (got core '$core')."
           }
-          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          Write-Host "Publishing version $version"
+          if ($label -and $label -notmatch '^[a-zA-Z0-9]+$') {
+            throw "Prerelease label must be alphanumeric, e.g. v1.0.0-beta1 (got '$label')."
+          }
+          $full = if ($label) { "$core-$label" } else { $core }
+          $pre  = if ($label) { 'true' } else { 'false' }
+          "core=$core"        | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "label=$label"      | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "full=$full"        | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "isPrerelease=$pre" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          Write-Host "Publishing $full (prerelease=$pre)"
 
       - name: Install PSScriptAnalyzer
         shell: pwsh
@@ -40,7 +51,7 @@ jobs:
 
       - name: Build (stamp, test, package, choco-stage)
         shell: pwsh
-        run: ./build/Build.ps1 -Version ${{ steps.version.outputs.version }} -Stamp -Test -Package -Choco
+        run: ./build/Build.ps1 -Version ${{ steps.version.outputs.core }} -Prerelease '${{ steps.version.outputs.label }}' -Stamp -Test -Package -Choco
 
       # --- PowerShell Gallery ---
       - name: Publish to PowerShell Gallery
@@ -57,7 +68,7 @@ jobs:
       - name: Pack and push Chocolatey package
         shell: pwsh
         run: |
-          choco pack build/choco/tfvc2git.nuspec --version ${{ steps.version.outputs.version }} --outputdirectory dist
+          choco pack build/choco/tfvc2git.nuspec --version ${{ steps.version.outputs.full }} --outputdirectory dist
           if ($env:CHOCO_API_KEY) {
             choco push (Get-ChildItem dist/*.nupkg | Select-Object -First 1).FullName --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
           }
@@ -70,6 +81,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.isPrerelease }}
           files: |
             dist/*.zip
             dist/*.nupkg

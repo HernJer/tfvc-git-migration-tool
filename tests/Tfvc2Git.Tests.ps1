@@ -176,3 +176,55 @@ Describe 'Test-PathWritable (private)' {
         }
     }
 }
+
+Describe 'Branch mapping helpers (private)' {
+    It 'defaults to main when no branch is set (hashtable)' {
+        InModuleScope $script:ModuleName {
+            Get-MappingBranch -Mapping @{ tfvcPath = '$/x' } | Should -Be 'main'
+        }
+    }
+
+    It 'reads the branch from a hashtable mapping' {
+        InModuleScope $script:ModuleName {
+            Get-MappingBranch -Mapping @{ tfvcPath = '$/x'; branch = 'dev' } | Should -Be 'dev'
+        }
+    }
+
+    It 'reads the branch from a PSCustomObject mapping' {
+        InModuleScope $script:ModuleName {
+            Get-MappingBranch -Mapping ([pscustomobject]@{ tfvcPath = '$/x'; branch = 'release' }) | Should -Be 'release'
+        }
+    }
+
+    It 'defaults to main for a PSCustomObject without a branch property' {
+        InModuleScope $script:ModuleName {
+            Get-MappingBranch -Mapping ([pscustomobject]@{ tfvcPath = '$/x' }) | Should -Be 'main'
+        }
+    }
+
+    It 'returns distinct branches in first-seen order' {
+        InModuleScope $script:ModuleName {
+            $m = @(
+                [pscustomobject]@{ tfvcPath = '$/a'; branch = 'dev' },
+                [pscustomobject]@{ tfvcPath = '$/b'; branch = 'main' },
+                [pscustomobject]@{ tfvcPath = '$/c'; branch = 'dev' }
+            )
+            $result = Get-ConfigBranches -SourceMappings $m
+            $result | Should -Be @('dev', 'main')
+        }
+    }
+
+    It 'picks main as the primary branch when present' {
+        InModuleScope $script:ModuleName {
+            $m = @([pscustomobject]@{ branch = 'dev' }, [pscustomobject]@{ branch = 'main' })
+            Get-PrimaryBranch -SourceMappings $m | Should -Be 'main'
+        }
+    }
+
+    It 'picks the first branch as primary when main is absent' {
+        InModuleScope $script:ModuleName {
+            $m = @([pscustomobject]@{ branch = 'dev' }, [pscustomobject]@{ branch = 'release' })
+            Get-PrimaryBranch -SourceMappings $m | Should -Be 'dev'
+        }
+    }
+}

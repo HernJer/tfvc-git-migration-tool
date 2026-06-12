@@ -111,33 +111,49 @@ The tool reads a `config.json` file. You can generate this using `New-TfvcMigrat
 
 ### Source Mappings
 
-You can map one or more TFVC paths to specific folders inside your Git repository.
+Each mapping sends a TFVC path to a **Git branch** (`branch`, default `main`) and an optional sub-folder within that branch (`destinationPath`, empty = branch root). All mappings land in **one repository**.
 
-**Example 1: Single folder → single repo**
-Migrate `$/MyProject/Application1` to the root of a new GitHub repo.
+**Example 1: Single folder → `main`**
+Migrate `$/MyProject/Application1` to the root of the `main` branch.
 ```json
     "sourceMappings": [
         {
             "tfvcPath": "$/MyProject/Application1",
-            "destinationPath": ""
+            "destinationPath": "",
+            "branch": "main"
         }
     ]
 ```
 
-**Example 2: Multiple folders → combined monorepo**
-Merge two TFVC folders into a single Git repo under separate subdirectories.
+**Example 2: Different folders → different branches**
+Send `/Prod` to `main` and `/DEV` to `dev` in the same repo.
 ```json
     "sourceMappings": [
         {
-            "tfvcPath": "$/MyProject/Frontend",
-            "destinationPath": "frontend"
+            "tfvcPath": "$/MyProject/Application1/Prod",
+            "destinationPath": "",
+            "branch": "main"
         },
         {
-            "tfvcPath": "$/MyProject/Backend",
-            "destinationPath": "backend"
+            "tfvcPath": "$/MyProject/Application1/DEV",
+            "destinationPath": "",
+            "branch": "dev"
         }
     ]
 ```
+
+**Example 3: Multiple folders → combined monorepo (same branch)**
+Merge two folders under sub-directories of `main`.
+```json
+    "sourceMappings": [
+        { "tfvcPath": "$/MyProject/Frontend", "destinationPath": "frontend", "branch": "main" },
+        { "tfvcPath": "$/MyProject/Backend",  "destinationPath": "backend",  "branch": "main" }
+    ]
+```
+
+### How branches are built
+
+Each branch is an **independent history**: for a given branch, only the changesets that touch its mapped folder(s) are replayed, in changeset order. A changeset that touches folders for two branches produces a commit on each. On `-Push`, **all** branches are pushed (`git push --all`). Verification compares each branch's HEAD against its own TFVC source.
 
 ---
 

@@ -41,9 +41,15 @@ Describe 'Exported commands' {
             Should -Not -BeNullOrEmpty
     }
 
-    It 'exports exactly the expected commands' {
-        $actual = (Get-Command -Module $script:ModuleName).Name | Sort-Object
+    It 'exports exactly the expected functions' {
+        $actual = (Get-Command -Module $script:ModuleName -CommandType Function).Name | Sort-Object
         $actual | Should -Be ($script:Expected | Sort-Object)
+    }
+
+    It 'exposes the tfvc2git alias for Invoke-TfvcMigration' {
+        $alias = Get-Command -Module $script:ModuleName -CommandType Alias -Name 'tfvc2git' -ErrorAction SilentlyContinue
+        $alias | Should -Not -BeNullOrEmpty
+        $alias.ResolvedCommand.Name | Should -Be 'Invoke-TfvcMigration'
     }
 
     It 'does not leak private API functions' {
@@ -52,7 +58,7 @@ Describe 'Exported commands' {
     }
 
     It 'uses only approved verbs' {
-        $unapproved = Get-Command -Module $script:ModuleName |
+        $unapproved = Get-Command -Module $script:ModuleName -CommandType Function |
             Where-Object { $_.Verb -notin (Get-Verb).Verb }
         $unapproved | Should -BeNullOrEmpty
     }

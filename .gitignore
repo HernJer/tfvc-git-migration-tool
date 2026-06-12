@@ -430,7 +430,7 @@ FodyWeavers.xsd
 
 # --- TFVC migration tool build/runtime artifacts ---
 dist/
-build/choco/tools/TfvcGitMigration/
+build/choco/tools/Tfvc2Git/
 *.nupkg
 config.json
 migration-output/

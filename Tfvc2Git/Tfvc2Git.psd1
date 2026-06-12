@@ -31,7 +31,7 @@
 
     CmdletsToExport   = @()
     VariablesToExport = @()
-    AliasesToExport   = @()
+    AliasesToExport   = @('tfvc2git')
 
     PrivateData = @{
         PSData = @{

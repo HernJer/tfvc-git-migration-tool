@@ -24,5 +24,9 @@ New-Item -ItemType Directory -Path $dest -Force | Out-Null
 
 Copy-Item -Path (Join-Path $source '*') -Destination $dest -Recurse -Force
 
+# Create a PATH shim so `tfvc2git` works from any shell (cmd, PowerShell, Windows Terminal).
+$launcher = Join-Path $toolsDir 'tfvc2git.cmd'
+Install-BinFile -Name 'tfvc2git' -Path $launcher
+
 Write-Host "Installed $moduleName $version to $dest" -ForegroundColor Green
-Write-Host "Open a new PowerShell session and run: Import-Module $moduleName" -ForegroundColor Cyan
+Write-Host "Run 'tfvc2git -DryRun' from any shell, or 'Import-Module $moduleName' in PowerShell." -ForegroundColor Cyan

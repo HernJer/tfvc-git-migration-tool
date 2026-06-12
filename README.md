@@ -51,6 +51,12 @@ The module exports one cmdlet per pipeline stage, plus an orchestrator. You will
 | `New-TfvcMigrationReport` | Generate a standalone HTML audit document. |
 | `Invoke-TfvcMigration` | Orchestrate all steps sequentially with progress reporting. |
 
+> **`tfvc2git` shortcut:** `tfvc2git` is a built-in alias for `Invoke-TfvcMigration`. In any PowerShell session you can run `tfvc2git -Push`. A **Chocolatey** install additionally shims `tfvc2git` onto your `PATH`, so it also works from `cmd.exe` and Windows Terminal:
+> ```
+> C:\> tfvc2git -ConfigPath .\config.json -Push
+> ```
+> Interactive config generation stays in PowerShell (`New-TfvcMigrationConfig`).
+
 Run `Get-Help <cmdlet> -Full` for parameters and examples.
 
 ### Pipeline Architecture

@@ -22,4 +22,9 @@ foreach ($file in @($private + $public)) {
     }
 }
 
-Export-ModuleMember -Function $public.BaseName
+# `tfvc2git` is a convenience alias for the main orchestrator so the tool can be
+# run as a single command. The Chocolatey package additionally shims this onto
+# PATH so it works from cmd.exe and other shells, not just PowerShell.
+Set-Alias -Name tfvc2git -Value Invoke-TfvcMigration
+
+Export-ModuleMember -Function $public.BaseName -Alias 'tfvc2git'

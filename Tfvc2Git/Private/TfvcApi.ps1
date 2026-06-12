@@ -5,6 +5,8 @@
     Provides functions to query changesets, list items, and download file content
     from TFVC repositories via the Azure DevOps Server REST API (v7.0).
     Designed for Azure DevOps Server 2022 on-premises. Supports PAT or Windows Auth.
+
+    These functions are loaded into the module's private scope and are NOT exported.
 #>
 
 # --- Connection ---
@@ -61,7 +63,9 @@ function Invoke-TfvcApi {
     $url = "$($Connection.BaseUrl)/_apis/tfvc/${Endpoint}?${qs}"
 
     for ($i = 1; $i -le $MaxRetries; $i++) {
-        Write-Host "  [DEBUG] GET $url" -ForegroundColor DarkGray; try { if ($Connection.UseDefaultCredentials) {
+        Write-Verbose "GET $url"
+        try {
+            if ($Connection.UseDefaultCredentials) {
                 return Invoke-RestMethod -Uri $url -Headers $Connection.Headers -Method Get -UseDefaultCredentials
             } else {
                 return Invoke-RestMethod -Uri $url -Headers $Connection.Headers -Method Get
@@ -260,7 +264,9 @@ function Save-TfvcItemContent {
     }
 
     for ($i = 1; $i -le $MaxRetries; $i++) {
-        Write-Host "  [DEBUG] GET $url" -ForegroundColor DarkGray; try { if ($Connection.UseDefaultCredentials) {
+        Write-Verbose "GET $url"
+        try {
+            if ($Connection.UseDefaultCredentials) {
                 Invoke-WebRequest -Uri $url -Headers $Connection.Headers -OutFile $OutputPath -UseBasicParsing -UseDefaultCredentials
             } else {
                 Invoke-WebRequest -Uri $url -Headers $Connection.Headers -OutFile $OutputPath -UseBasicParsing

@@ -1,6 +1,6 @@
 {
     "_instructions": [
-        "Copy this file to 'config.json' and fill in your values.",
+        "Copy this file to 'config.json' and fill in your values, or run New-TfvcMigrationConfig.",
         "For separate repos: use one config per repo, one entry in sourceMappings with empty destinationPath.",
         "For combined repo: use multiple entries in sourceMappings, each with a destinationPath prefix."
     ],

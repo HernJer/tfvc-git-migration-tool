@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>tfvc2git</id>
+    <version>0.0.0</version>
+    <title>tfvc2git - TFVC to GitHub Migration Tool</title>
+    <authors>HernJer</authors>
+    <owners>HernJer</owners>
+    <projectUrl>https://github.com/HernJer/tfvc-git-migration-tool</projectUrl>
+    <packageSourceUrl>https://github.com/HernJer/tfvc-git-migration-tool</packageSourceUrl>
+    <licenseUrl>https://github.com/HernJer/tfvc-git-migration-tool/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/HernJer/tfvc-git-migration-tool</projectSourceUrl>
+    <docsUrl>https://github.com/HernJer/tfvc-git-migration-tool/blob/main/README.md</docsUrl>
+    <bugTrackerUrl>https://github.com/HernJer/tfvc-git-migration-tool/issues</bugTrackerUrl>
+    <tags>tfvc git github migration azure-devops tfs powershell admin</tags>
+    <summary>Migrate TFVC folders from on-premise Azure DevOps Server to Git/GitHub with audit-grade verification.</summary>
+    <description>
+Installs the **Tfvc2Git** PowerShell module, which migrates specific folders
+from an on-premise Azure DevOps Server (2020/2022) TFVC repository to Git/GitHub,
+preserving full changeset history and producing a verifiable, audit-grade trail.
+
+The module is copied into the all-users PowerShell module path. After install, open
+a new Windows PowerShell session and run:
+
+    Import-Module Tfvc2Git
+    New-TfvcMigrationConfig
+    Invoke-TfvcMigration -ConfigPath ./config.json -Push
+
+Requires Windows PowerShell 5.1+ and the Git CLI on PATH.
+    </description>
+    <releaseNotes>https://github.com/HernJer/tfvc-git-migration-tool/releases</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

@@ -427,3 +427,10 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# --- TFVC migration tool build/runtime artifacts ---
+dist/
+build/choco/tools/TfvcGitMigration/
+*.nupkg
+config.json
+migration-output/

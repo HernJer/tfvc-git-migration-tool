@@ -28,5 +28,6 @@
     "gitRemoteUrl": "https://github.com/your-org/your-repo.git",
     "outputDir": "./migration-output",
     "lfsThresholdBytes": 52428800,
-    "lfsPatterns": ["*.dll", "*.exe", "*.zip", "*.nupkg"]
+    "lfsPatterns": ["*.dll", "*.exe", "*.zip", "*.nupkg"],
+    "downloadConcurrency": 8
 }

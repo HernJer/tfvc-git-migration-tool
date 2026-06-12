@@ -188,6 +188,7 @@ location. Or choose where to save it:
             outputDir         = $cfgOutputDir
             lfsThresholdBytes = 52428800
             lfsPatterns       = @('*.dll', '*.exe', '*.zip', '*.nupkg')
+            downloadConcurrency = 8
         }
     }
     else {
@@ -262,6 +263,7 @@ location. Or choose where to save it:
             outputDir         = $cfgOutputDir
             lfsThresholdBytes = $cfgLfsBytes
             lfsPatterns       = @($cfgLfsPatterns)
+            downloadConcurrency = 8
         }
     }
 

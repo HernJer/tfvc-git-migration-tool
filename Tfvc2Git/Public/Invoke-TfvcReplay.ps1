@@ -49,8 +49,12 @@ function Invoke-TfvcReplay {
     $branches      = Get-ConfigBranches -SourceMappings $config.sourceMappings
     $primaryBranch = Get-PrimaryBranch  -SourceMappings $config.sourceMappings
 
+    # How many file downloads to run concurrently per changeset (config-tunable).
+    $downloadConcurrency = $(if ($null -ne $config.psobject.Properties['downloadConcurrency'] -and $config.downloadConcurrency) { [int]$config.downloadConcurrency } else { 8 })
+
     Write-MigrationLog -Message "=== Git Replay started ===" -LogFile $logFile
     Write-MigrationLog -Message "Total changesets in export: $($changesets.Count)" -LogFile $logFile
+    Write-MigrationLog -Message "Download concurrency: $downloadConcurrency" -LogFile $logFile
     Write-MigrationLog -Message "Target branches: $($branches -join ', ')  (primary: $primaryBranch)" -LogFile $logFile
 
     # --- TFVC connection (for downloading files) ---
@@ -218,12 +222,15 @@ function Invoke-TfvcReplay {
         param($Changeset, $Changes)
         $cs = $Changeset
 
+        # Pass 1: apply filesystem ops (deletes, rename-old removal) and collect
+        # the file downloads so they can run concurrently.
+        $downloads = [System.Collections.Generic.List[object]]::new()
         foreach ($change in $Changes) {
             $destFile = Join-Path $repoPath $change.destinationPath
 
             switch ($change.changeType) {
                 { $_ -in 'add', 'edit', 'branch', 'merge', 'undelete' } {
-                    Save-TfvcItemContent -Connection $conn -ServerPath $change.serverPath -OutputPath $destFile -ChangesetVersion $cs.changesetId
+                    $downloads.Add(@{ ServerPath = $change.serverPath; OutputPath = $destFile; ChangesetVersion = $cs.changesetId })
                 }
                 'delete' {
                     Remove-FileAndEmptyParents -FilePath $destFile
@@ -238,14 +245,22 @@ function Invoke-TfvcReplay {
                             }
                         }
                     }
-                    Save-TfvcItemContent -Connection $conn -ServerPath $change.serverPath -OutputPath $destFile -ChangesetVersion $cs.changesetId
+                    $downloads.Add(@{ ServerPath = $change.serverPath; OutputPath = $destFile; ChangesetVersion = $cs.changesetId })
                 }
             }
+        }
 
-            if ($change.changeType -ne 'delete' -and (Test-Path $destFile)) {
-                $fileSize = (Get-Item $destFile).Length
-                if (Test-NeedsLfs -FilePath $destFile -SizeBytes $fileSize) {
-                    $ext = [System.IO.Path]::GetExtension($destFile)
+        # Pass 2: download this changeset's files concurrently.
+        if ($downloads.Count -gt 0) {
+            Invoke-ParallelDownload -Connection $conn -Items $downloads.ToArray() -Concurrency $downloadConcurrency
+        }
+
+        # Pass 3: LFS tracking for any downloaded file that needs it.
+        foreach ($d in $downloads) {
+            if (Test-Path $d.OutputPath) {
+                $fileSize = (Get-Item $d.OutputPath).Length
+                if (Test-NeedsLfs -FilePath $d.OutputPath -SizeBytes $fileSize) {
+                    $ext = [System.IO.Path]::GetExtension($d.OutputPath)
                     if ($ext) { Add-LfsTracking -Pattern "*$ext" }
                 }
             }

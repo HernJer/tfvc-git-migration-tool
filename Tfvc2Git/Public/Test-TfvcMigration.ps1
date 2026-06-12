@@ -43,6 +43,7 @@ function Test-TfvcMigration {
 
         $branches      = Get-ConfigBranches -SourceMappings $config.sourceMappings
         $primaryBranch = Get-PrimaryBranch  -SourceMappings $config.sourceMappings
+        $downloadConcurrency = $(if ($null -ne $config.psobject.Properties['downloadConcurrency'] -and $config.downloadConcurrency) { [int]$config.downloadConcurrency } else { 8 })
 
         Write-MigrationLog "=== Verification started ===" -LogFile $logFile
         Write-MigrationLog "Branches to verify: $($branches -join ', ')" -LogFile $logFile
@@ -108,28 +109,46 @@ function Test-TfvcMigration {
 
             Write-MigrationLog "  [$b] TFVC: $($tfvcFiles.Count)  Git: $($gitFiles.Count)  Matched: $($inBoth.Count)  OnlyTfvc: $($onlyInTfvc.Count)  OnlyGit: $($onlyInGit.Count)" -LogFile $logFile
 
-            # Pass 2 - hashes for this branch
+            # Pass 2 - hashes for this branch. Download TFVC content concurrently
+            # in batches (so we never materialise the whole tree of temp files at
+            # once), then hash each downloaded file against the Git working copy.
             Write-MigrationLog "Pass 2 [$b]: content hashes ($($inBoth.Count) files)" -LogFile $logFile
-            foreach ($destPath in $inBoth) {
-                $compared++
-                $serverPath = $pathLookup[$destPath]
-                $tempFile   = Join-Path $tempDir ([Guid]::NewGuid().ToString('N'))
+            $batchSize = [Math]::Max(50, $downloadConcurrency * 25)
+            for ($start = 0; $start -lt $inBoth.Count; $start += $batchSize) {
+                $end   = [Math]::Min($start + $batchSize, $inBoth.Count) - 1
+                $batch = @($inBoth[$start..$end] | ForEach-Object {
+                    [pscustomobject]@{ DestPath = $_; ServerPath = $pathLookup[$_]; TempFile = (Join-Path $tempDir ([Guid]::NewGuid().ToString('N'))) }
+                })
+
                 try {
-                    Save-TfvcItemContent -Connection $conn -ServerPath $serverPath -OutputPath $tempFile
-                    $tfvcHash = (Get-FileHash -Path $tempFile -Algorithm SHA256).Hash
-                    $gitHash  = (Get-FileHash -Path (Join-Path $repoPath $destPath) -Algorithm SHA256).Hash
-                    $isMatch  = $tfvcHash -eq $gitHash
-                    if ($isMatch) { $matched++ }
-                    else { $mismatches.Add(@{ path = "${b}:$destPath"; tfvcHash = $tfvcHash; gitHash = $gitHash }) }
-                    $hashRows.Add("$b,$destPath,$tfvcHash,$gitHash,$isMatch")
+                    Invoke-ParallelDownload -Connection $conn `
+                        -Items @($batch | ForEach-Object { @{ ServerPath = $_.ServerPath; OutputPath = $_.TempFile } }) `
+                        -Concurrency $downloadConcurrency
                 }
                 catch {
-                    Write-MigrationLog "  Error hashing [$b] ${destPath}: $_" -Level ERROR -LogFile $logFile
-                    $hashRows.Add("$b,$destPath,ERROR,ERROR,False")
-                    $mismatches.Add(@{ path = "${b}:$destPath"; tfvcHash = 'ERROR'; gitHash = 'ERROR' })
+                    Write-MigrationLog "  [$b] batch download error: $_" -Level WARN -LogFile $logFile
                 }
-                finally {
-                    if (Test-Path $tempFile) { Remove-Item $tempFile -Force -ErrorAction SilentlyContinue }
+
+                foreach ($hi in $batch) {
+                    $compared++
+                    $destPath = $hi.DestPath
+                    try {
+                        if (-not (Test-Path $hi.TempFile)) { throw "TFVC content was not downloaded" }
+                        $tfvcHash = (Get-FileHash -Path $hi.TempFile -Algorithm SHA256).Hash
+                        $gitHash  = (Get-FileHash -Path (Join-Path $repoPath $destPath) -Algorithm SHA256).Hash
+                        $isMatch  = $tfvcHash -eq $gitHash
+                        if ($isMatch) { $matched++ }
+                        else { $mismatches.Add(@{ path = "${b}:$destPath"; tfvcHash = $tfvcHash; gitHash = $gitHash }) }
+                        $hashRows.Add("$b,$destPath,$tfvcHash,$gitHash,$isMatch")
+                    }
+                    catch {
+                        Write-MigrationLog "  Error hashing [$b] ${destPath}: $_" -Level ERROR -LogFile $logFile
+                        $hashRows.Add("$b,$destPath,ERROR,ERROR,False")
+                        $mismatches.Add(@{ path = "${b}:$destPath"; tfvcHash = 'ERROR'; gitHash = 'ERROR' })
+                    }
+                    finally {
+                        if (Test-Path $hi.TempFile) { Remove-Item $hi.TempFile -Force -ErrorAction SilentlyContinue }
+                    }
                 }
             }
 

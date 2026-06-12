@@ -229,6 +229,15 @@ Describe 'Branch mapping helpers (private)' {
     }
 }
 
+Describe 'Invoke-ParallelDownload (private)' {
+    It 'returns without error (and opens no runspaces) for an empty item list' {
+        InModuleScope $script:ModuleName {
+            $conn = @{ BaseUrl = 'http://tfs'; ApiVersion = '7.0'; Headers = @{}; UseDefaultCredentials = $false }
+            { Invoke-ParallelDownload -Connection $conn -Items @() } | Should -Not -Throw
+        }
+    }
+}
+
 Describe 'Invoke-Git (private)' {
     It 'does not let git stderr abort under ErrorActionPreference=Stop' {
         InModuleScope $script:ModuleName {

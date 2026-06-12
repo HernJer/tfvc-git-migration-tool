@@ -143,7 +143,36 @@ Describe 'Invoke-Tfvc2Git dispatcher' {
         }
     }
 
-    It 'errors on an unknown subcommand' {
-        { Invoke-Tfvc2Git frobnicate } | Should -Throw
+    It 'renders an unknown subcommand cleanly instead of throwing' {
+        # The dispatcher catches and prints a friendly message - it must not
+        # surface a raw PowerShell error record.
+        { Invoke-Tfvc2Git frobnicate } | Should -Not -Throw
+    }
+
+    It 'renders a missing config cleanly (does not throw) via the dispatcher' {
+        $missing = Join-Path ([System.IO.Path]::GetTempPath()) "tfvc2git-missing-$([guid]::NewGuid()).json"
+        { Invoke-Tfvc2Git run -ConfigPath $missing } | Should -Not -Throw
+    }
+}
+
+Describe 'Clean error handling' {
+    It 'Invoke-TfvcMigration throws a clear, self-contained message when the config is missing' {
+        $missing = Join-Path ([System.IO.Path]::GetTempPath()) "tfvc2git-missing-$([guid]::NewGuid()).json"
+        { Invoke-TfvcMigration -ConfigPath $missing } | Should -Throw '*Config file not found*'
+    }
+}
+
+Describe 'Test-PathWritable (private)' {
+    It 'returns true for a writable directory' {
+        InModuleScope $script:ModuleName {
+            Test-PathWritable -Path ([System.IO.Path]::GetTempPath()) | Should -BeTrue
+        }
+    }
+
+    It 'resolves to the nearest existing ancestor for a not-yet-created path' {
+        InModuleScope $script:ModuleName {
+            $deep = Join-Path ([System.IO.Path]::GetTempPath()) "a-$([guid]::NewGuid())/b/c"
+            Test-PathWritable -Path $deep | Should -BeTrue
+        }
     }
 }

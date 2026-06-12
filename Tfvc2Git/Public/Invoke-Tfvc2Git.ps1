@@ -57,24 +57,32 @@ Options are forwarded to the underlying command, for example:
     $sub  = if ($argv.Count -ge 1) { "$($argv[0])" } else { '' }
     $rest = if ($argv.Count -ge 2) { $argv[1..($argv.Count - 1)] } else { @() }
 
-    switch -Regex ($sub) {
-        '^(--)?(config|create-config|init)$' { New-TfvcMigrationConfig @rest; break }
-        '^(--)?(run|migrate)$'               { Invoke-TfvcMigration   @rest; break }
-        '^(--)?export$'                      { Export-TfvcChangeset   @rest; break }
-        '^(--)?replay$'                      { Invoke-TfvcReplay      @rest; break }
-        '^(--)?(verify|test)$'               { Test-TfvcMigration     @rest; break }
-        '^(--)?report$'                      { New-TfvcMigrationReport @rest; break }
-        '^(--help|-h|help|/\?)$'             { Show-Tfvc2GitUsage; break }
-        '^(--version|version)$' {
-            $v = $MyInvocation.MyCommand.Module.Version
-            Write-Host "tfvc2git $(if ($v) { $v } else { '0.0.0' })"
-            break
-        }
-        default {
-            if ($sub -and $sub -notmatch '^-') {
-                throw "Unknown command '$sub'. Run 'tfvc2git help' for usage."
+    try {
+        switch -Regex ($sub) {
+            '^(--)?(config|create-config|init)$' { New-TfvcMigrationConfig @rest; break }
+            '^(--)?(run|migrate)$'               { Invoke-TfvcMigration   @rest; break }
+            '^(--)?export$'                      { Export-TfvcChangeset   @rest; break }
+            '^(--)?replay$'                      { Invoke-TfvcReplay      @rest; break }
+            '^(--)?(verify|test)$'               { Test-TfvcMigration     @rest; break }
+            '^(--)?report$'                      { New-TfvcMigrationReport @rest; break }
+            '^(--help|-h|help|/\?)$'             { Show-Tfvc2GitUsage; break }
+            '^(--version|version)$' {
+                $v = $MyInvocation.MyCommand.Module.Version
+                Write-Host "tfvc2git $(if ($v) { $v } else { '0.0.0' })"
+                break
             }
-            Invoke-TfvcMigration @argv
+            default {
+                if ($sub -and $sub -notmatch '^-') {
+                    throw "Unknown command '$sub'. Run 'tfvc2git help' for usage."
+                }
+                Invoke-TfvcMigration @argv
+            }
         }
+    }
+    catch {
+        # Render a single friendly message instead of a raw PowerShell error
+        # record. The underlying commands carry self-contained, actionable text.
+        Write-CleanError $_.Exception.Message
+        return
     }
 }

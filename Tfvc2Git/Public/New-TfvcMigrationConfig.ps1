@@ -125,6 +125,33 @@ function New-TfvcMigrationConfig {
 
     Show-Banner
 
+    # Resolve the output path up front so we fail fast (before prompts) with a
+    # clear message instead of after the user has filled in every field.
+    $resolvedPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath)
+
+    # If they pointed at a folder (an existing directory, or a trailing slash),
+    # save config.json inside it rather than trying to overwrite the folder
+    # itself - writing file content to a directory path is what produces the
+    # "access is denied" error even when you have full permissions.
+    if ((Test-Path -LiteralPath $resolvedPath -PathType Container) -or ($OutputPath -match '[\\/]\s*$')) {
+        $resolvedPath = Join-Path $resolvedPath 'config.json'
+    }
+
+    $targetDir = Split-Path $resolvedPath -Parent
+    if (-not $targetDir) { $targetDir = (Get-Location).Path }
+    if (-not (Test-PathWritable -Path $targetDir)) {
+        Write-CleanError @"
+Cannot write the config file to:
+    $resolvedPath
+
+The folder '$targetDir' is not writable for this account. Check that it is not
+read-only or locked by another program, and that it is not inside a protected
+location. Or choose where to save it:
+    tfvc2git config -OutputPath C:\path\to\config.json
+"@
+        return
+    }
+
     if ($NonInteractive) {
         # -- Non-interactive mode --
         $requiredParams = @{
@@ -248,14 +275,27 @@ function New-TfvcMigrationConfig {
         return
     }
 
-    # -- Save config --
+    # -- Save config -- ($resolvedPath was validated/normalised up front)
     $json = $config | ConvertTo-Json -Depth 5
-    $resolvedPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputPath)
     $dir = Split-Path $resolvedPath -Parent
     if ($dir -and -not (Test-Path $dir)) {
         New-Item -Path $dir -ItemType Directory -Force | Out-Null
     }
-    $json | Set-Content -Path $resolvedPath -Encoding UTF8
+    try {
+        $json | Set-Content -LiteralPath $resolvedPath -Encoding UTF8 -ErrorAction Stop
+    }
+    catch {
+        Write-CleanError @"
+Could not write the config file:
+    $resolvedPath
+
+$($_.Exception.Message)
+
+Pick a writable location with -OutputPath, e.g.:
+    tfvc2git config -OutputPath C:\path\to\config.json
+"@
+        return
+    }
 
     Write-Host "  [+] Config saved to: $resolvedPath" -ForegroundColor Green
 

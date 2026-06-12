@@ -18,7 +18,7 @@ jobs:
       CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Derive version from tag
         id: version
@@ -76,12 +76,15 @@ jobs:
             Write-Host '::warning::CHOCO_API_KEY secret not set - packed .nupkg but skipped push.'
           }
 
-      # --- GitHub Release ---
+      # --- GitHub Release (via the runner's built-in gh CLI; no Node action) ---
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          prerelease: ${{ steps.version.outputs.isPrerelease }}
-          files: |
-            dist/*.zip
-            dist/*.nupkg
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $assets  = Get-ChildItem dist -File | Where-Object { $_.Extension -in '.zip', '.nupkg' } | ForEach-Object { $_.FullName }
+          $relArgs = @('release', 'create', '${{ github.ref_name }}', '--title', '${{ github.ref_name }}', '--generate-notes')
+          if ('${{ steps.version.outputs.isPrerelease }}' -eq 'true') { $relArgs += '--prerelease' }
+          $relArgs += $assets
+          gh @relArgs

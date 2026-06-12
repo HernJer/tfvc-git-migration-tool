@@ -36,6 +36,9 @@
 
     PrivateData = @{
         PSData = @{
+            # Prerelease label (e.g. beta1, rc1); empty string = stable.
+            # Stamped from the git tag by build/Build.ps1 at publish time.
+            Prerelease   = ''
             Tags         = @('TFVC', 'Git', 'GitHub', 'Migration', 'AzureDevOps', 'TFS', 'VersionControl', 'DevOps', 'Windows')
             LicenseUri   = 'https://github.com/HernJer/tfvc-git-migration-tool/blob/main/LICENSE'
             ProjectUri   = 'https://github.com/HernJer/tfvc-git-migration-tool'

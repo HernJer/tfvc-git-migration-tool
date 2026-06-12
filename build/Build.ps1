@@ -15,6 +15,7 @@
 [CmdletBinding()]
 param(
     [string]$Version,
+    [string]$Prerelease,
     [string]$ModuleName = 'Tfvc2Git',
     [switch]$Stamp,
     [switch]$Test,
@@ -40,6 +41,9 @@ if ($Stamp) {
     if ($Version -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
         throw "Version '$Version' is not a valid module version (expected N.N.N)."
     }
+    if ($Prerelease -and $Prerelease -notmatch '^[a-zA-Z0-9]+$') {
+        throw "Prerelease '$Prerelease' must be alphanumeric (e.g. beta1, rc1)."
+    }
     Write-Step "Stamping ModuleVersion = $Version into $manifest"
     $content = Get-Content -Path $manifest -Raw
     $content = [regex]::Replace(
@@ -47,6 +51,15 @@ if ($Stamp) {
         "(?m)^(\s*ModuleVersion\s*=\s*')[^']*(')",
         "`${1}$Version`${2}"
     )
+    # The prerelease label lives in PSData.Prerelease; ModuleVersion stays numeric.
+    if ($PSBoundParameters.ContainsKey('Prerelease')) {
+        Write-Step "Stamping Prerelease = '$Prerelease' into PSData"
+        $content = [regex]::Replace(
+            $content,
+            "(?m)^(\s*Prerelease\s*=\s*')[^']*(')",
+            "`${1}$Prerelease`${2}"
+        )
+    }
     Set-Content -Path $manifest -Value $content -Encoding UTF8 -NoNewline
 }
 
@@ -86,7 +99,8 @@ if ($Package) {
     Write-Step "Staging module to $stageDir"
     Copy-Item -Path (Join-Path $moduleDir '*') -Destination $stageDir -Recurse -Force
 
-    $zipName = if ($Version) { "$ModuleName-$Version.zip" } else { "$ModuleName.zip" }
+    $fullVersion = if ($Version -and $Prerelease) { "$Version-$Prerelease" } elseif ($Version) { $Version } else { $null }
+    $zipName = if ($fullVersion) { "$ModuleName-$fullVersion.zip" } else { "$ModuleName.zip" }
     $zipPath = Join-Path $resolvedOut $zipName
     Write-Step "Compressing to $zipPath"
     Compress-Archive -Path $stageDir -DestinationPath $zipPath -Force

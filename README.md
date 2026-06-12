@@ -252,6 +252,24 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
+### Beta / prerelease testing
+
+Tag with an alphanumeric prerelease label to publish a **beta** that won't supersede the stable version:
+
+```powershell
+git tag v1.0.0-beta1
+git push origin v1.0.0-beta1
+```
+
+This stamps the module as `1.0.0-beta1`, marks the GitHub Release as a pre-release, and publishes a prerelease to the PowerShell Gallery and Chocolatey. Install it explicitly with:
+
+```powershell
+Install-Module Tfvc2Git -AllowPrerelease      # PowerShell Gallery
+choco install tfvc2git --pre                  # Chocolatey
+```
+
+If the registry secrets below aren't set yet, the beta still produces a downloadable GitHub Release `.zip` you can extract and `Import-Module` to test — the registry steps just skip. Once the beta checks out, tag `v1.0.0` for the stable release.
+
 The workflow requires two repository secrets (Settings → Secrets and variables → Actions):
 
 | Secret | Used for |

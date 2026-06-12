@@ -1,8 +1,9 @@
 {
     "_instructions": [
         "Copy this file to 'config.json' and fill in your values, or run New-TfvcMigrationConfig.",
-        "For separate repos: use one config per repo, one entry in sourceMappings with empty destinationPath.",
-        "For combined repo: use multiple entries in sourceMappings, each with a destinationPath prefix."
+        "Each source mapping targets a Git branch via 'branch' (default 'main' if omitted).",
+        "Map different TFVC folders to different branches, e.g. /DEV -> dev and /Prod -> main.",
+        "Use 'destinationPath' to place a mapping under a subfolder within its branch (empty = branch root)."
     ],
 
     "adoServerUrl": "https://tfs.company.com:8080/tfs",
@@ -13,8 +14,14 @@
 
     "sourceMappings": [
         {
-            "tfvcPath": "$/MyProject/Application1",
-            "destinationPath": ""
+            "tfvcPath": "$/MyProject/Application1/Prod",
+            "destinationPath": "",
+            "branch": "main"
+        },
+        {
+            "tfvcPath": "$/MyProject/Application1/DEV",
+            "destinationPath": "",
+            "branch": "dev"
         }
     ],
 

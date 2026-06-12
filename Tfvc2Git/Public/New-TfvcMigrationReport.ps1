@@ -72,6 +72,7 @@ function New-TfvcMigrationReport {
         # Hash comparison rows
         $hashTableRows = ''
         foreach ($row in $hashCsv) {
+            $branch    = ConvertTo-HtmlSafe $row.Branch
             $path      = ConvertTo-HtmlSafe $row.Path
             $tfvcFull  = ConvertTo-HtmlSafe $row.TfvcSHA256
             $gitFull   = ConvertTo-HtmlSafe $row.GitSHA256
@@ -79,7 +80,7 @@ function New-TfvcMigrationReport {
             $gitShort  = ConvertTo-HtmlSafe (Get-TruncatedHash $row.GitSHA256)
             $match     = $row.Match
             $cls       = if ($match -ne 'True') { ' class="mismatch"' } else { '' }
-            $hashTableRows += "<tr$cls><td class=`"mono`">$path</td><td class=`"mono`" title=`"$tfvcFull`">$tfvcShort</td><td class=`"mono`" title=`"$gitFull`">$gitShort</td><td>$match</td></tr>`n"
+            $hashTableRows += "<tr$cls><td>$branch</td><td class=`"mono`">$path</td><td class=`"mono`" title=`"$tfvcFull`">$tfvcShort</td><td class=`"mono`" title=`"$gitFull`">$gitShort</td><td>$match</td></tr>`n"
         }
 
         # Changeset mapping rows
@@ -89,6 +90,7 @@ function New-TfvcMigrationReport {
         $csTableRows = ''
         foreach ($row in $csMappCsv) {
             $csId    = ConvertTo-HtmlSafe $row.ChangesetId
+            $branch  = ConvertTo-HtmlSafe $row.Branch
             $hash    = ConvertTo-HtmlSafe $row.GitCommitHash
             $hashShort = if ($hash.Length -gt 8) { $hash.Substring(0, 8) } else { $hash }
             $author  = ConvertTo-HtmlSafe $row.Author
@@ -96,7 +98,7 @@ function New-TfvcMigrationReport {
             $comment = ConvertTo-HtmlSafe $row.Comment
             if ($comment.Length -gt 80) { $comment = $comment.Substring(0, 80) + '...' }
             $cls     = if ($unmappedSet.Contains($row.ChangesetId)) { ' class="mismatch"' } else { '' }
-            $csTableRows += "<tr$cls><td>$csId</td><td class=`"mono`" title=`"$(ConvertTo-HtmlSafe $row.GitCommitHash)`">$hashShort</td><td>$author</td><td>$date</td><td>$comment</td></tr>`n"
+            $csTableRows += "<tr$cls><td>$csId</td><td>$branch</td><td class=`"mono`" title=`"$(ConvertTo-HtmlSafe $row.GitCommitHash)`">$hashShort</td><td>$author</td><td>$date</td><td>$comment</td></tr>`n"
         }
 
         # Configuration (sanitized)
@@ -401,7 +403,7 @@ function New-TfvcMigrationReport {
                <strong>$($summary.hashCheck.mismatched)</strong> mismatched.</p>
             <div class="table-scroll">
                 <table>
-                    <thead><tr><th>Path</th><th>TFVC SHA-256</th><th>Git SHA-256</th><th>Match</th></tr></thead>
+                    <thead><tr><th>Branch</th><th>Path</th><th>TFVC SHA-256</th><th>Git SHA-256</th><th>Match</th></tr></thead>
                     <tbody>$hashTableRows</tbody>
                 </table>
             </div>
@@ -414,7 +416,7 @@ function New-TfvcMigrationReport {
                <strong>$($summary.changesetCoverage.totalMappedCommits)</strong> Git commits.</p>
             <div class="table-scroll">
                 <table>
-                    <thead><tr><th>Changeset</th><th>Commit</th><th>Author</th><th>Date</th><th>Comment</th></tr></thead>
+                    <thead><tr><th>Changeset</th><th>Branch</th><th>Commit</th><th>Author</th><th>Date</th><th>Comment</th></tr></thead>
                     <tbody>$csTableRows</tbody>
                 </table>
             </div>

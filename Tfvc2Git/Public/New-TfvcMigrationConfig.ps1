@@ -19,6 +19,8 @@ function New-TfvcMigrationConfig {
         Personal Access Token (non-interactive mode).
     .PARAMETER TfvcPath
         TFVC source path, e.g. $/Project/Folder (non-interactive mode).
+    .PARAMETER Branch
+        Target Git branch for the source path (non-interactive mode). Defaults to 'main'.
     .PARAMETER GitRemoteUrl
         GitHub remote URL (non-interactive mode).
     .PARAMETER OutputDir
@@ -39,6 +41,7 @@ function New-TfvcMigrationConfig {
         [string]$Project,
         [string]$Pat,
         [string]$TfvcPath,
+        [string]$Branch = 'main',
         [string]$GitRemoteUrl,
         [string]$OutputDir
     )
@@ -110,7 +113,8 @@ function New-TfvcMigrationConfig {
         Write-Host "  |  Source Mappings:" -ForegroundColor DarkCyan
         foreach ($m in $Config.sourceMappings) {
             $dest = if ($m.destinationPath) { $m.destinationPath } else { '(root)' }
-            Write-Host "  |    $($m.tfvcPath) -> $dest" -ForegroundColor DarkCyan
+            $br   = Get-MappingBranch -Mapping $m
+            Write-Host "  |    $($m.tfvcPath) -> [$br] $dest" -ForegroundColor DarkCyan
         }
         Write-Host "  |  Git Remote    : $($Config.gitRemoteUrl)" -ForegroundColor DarkCyan
         Write-Host "  |  Output Dir    : $($Config.outputDir)" -ForegroundColor DarkCyan
@@ -169,6 +173,7 @@ location. Or choose where to save it:
 
         $cfgCollection  = if ($Collection) { $Collection } else { 'DefaultCollection' }
         $cfgOutputDir   = if ($OutputDir)  { $OutputDir }  else { './migration-output' }
+        $cfgBranch      = if ($Branch)     { $Branch }     else { 'main' }
 
         $config = @{
             adoServerUrl      = $ServerUrl
@@ -177,7 +182,7 @@ location. Or choose where to save it:
             apiVersion        = '7.0'
             pat               = $Pat
             sourceMappings    = @(
-                @{ tfvcPath = $TfvcPath; destinationPath = '' }
+                @{ tfvcPath = $TfvcPath; destinationPath = ''; branch = $cfgBranch }
             )
             gitRemoteUrl      = $GitRemoteUrl
             outputDir         = $cfgOutputDir
@@ -206,13 +211,15 @@ location. Or choose where to save it:
         # 3. Source mappings (loop)
         Write-Host ''
         Write-Host '  -- Source Mappings --' -ForegroundColor White
-        Write-Host '  Map one or more TFVC folders to destinations in the Git repo.' -ForegroundColor Gray
+        Write-Host '  Map one or more TFVC folders to a Git branch (and optional subfolder).' -ForegroundColor Gray
+        Write-Host '  e.g. $/Proj/App/DEV -> dev,  $/Proj/App/Prod -> main' -ForegroundColor DarkGray
         $mappings = [System.Collections.Generic.List[hashtable]]::new()
         do {
             $tfvc = Read-Prompt -Label 'TFVC path (e.g. $/Project/Folder)'
-            $dest = Read-Host '  Destination path in Git repo (empty = repo root) []'
+            $branch = Read-Prompt -Label 'Target Git branch' -Default 'main'
+            $dest = Read-Host '  Destination subfolder within the branch (empty = branch root) []'
             if ([string]::IsNullOrWhiteSpace($dest)) { $dest = '' }
-            $mappings.Add(@{ tfvcPath = $tfvc; destinationPath = $dest })
+            $mappings.Add(@{ tfvcPath = $tfvc; destinationPath = $dest; branch = $branch })
             $more = Read-Host '  Add another mapping? (y/n) [n]'
         } while ($more -eq 'y' -or $more -eq 'Y')
 

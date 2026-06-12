@@ -171,7 +171,7 @@ function Export-TfvcChangeset {
                                 if ($null -ne $item.psobject.Properties['gitObjectType'] -and $item.gitObjectType -eq 'tree') { continue }
                                 $destPath = ConvertTo-RelativePath -ServerPath $item.path -TfvcBase $m.tfvcPath -DestinationPrefix $(if ($m.destinationPath) { $m.destinationPath } else { '' })
                                 if ($destPath) {
-                                    $scopedChanges.Add([PSCustomObject]@{ changeType = 'add'; serverPath = $item.path; destinationPath = $destPath; sourceServerPath = $null })
+                                    $scopedChanges.Add([PSCustomObject]@{ changeType = 'add'; serverPath = $item.path; destinationPath = $destPath; sourceServerPath = $null; branch = (Get-MappingBranch -Mapping $m) })
                                 }
                             }
                         }
@@ -186,7 +186,7 @@ function Export-TfvcChangeset {
                                     if ($null -ne $item.psobject.Properties['gitObjectType'] -and $item.gitObjectType -eq 'tree') { continue }
                                     $destPath = ConvertTo-RelativePath -ServerPath $item.path -TfvcBase $m.tfvcPath -DestinationPrefix $(if ($m.destinationPath) { $m.destinationPath } else { '' })
                                     if ($destPath) {
-                                        $scopedChanges.Add([PSCustomObject]@{ changeType = 'delete'; serverPath = $item.path; destinationPath = $destPath; sourceServerPath = $null })
+                                        $scopedChanges.Add([PSCustomObject]@{ changeType = 'delete'; serverPath = $item.path; destinationPath = $destPath; sourceServerPath = $null; branch = (Get-MappingBranch -Mapping $m) })
                                     }
                                 }
                             }
@@ -215,19 +215,23 @@ function Export-TfvcChangeset {
                 serverPath       = $serverPath
                 destinationPath  = $destPath
                 sourceServerPath = $sourceServerPath
+                branch           = (Get-MappingBranch -Mapping $mapping)
             })
         }
 
-        # Deduplicate changes for the same file in the same changeset
+        # Deduplicate changes for the same file in the same changeset. Key on
+        # branch + destinationPath so the same relative path on two branches
+        # (e.g. /DEV and /Prod both at root) does not collide.
         $uniqueChanges = @{}
         foreach ($c in $scopedChanges) {
+            $key = "$($c.branch)|$($c.destinationPath)"
             if ($c.changeType -eq 'delete') {
-                $uniqueChanges[$c.destinationPath] = $c
-            } elseif (-not $uniqueChanges.ContainsKey($c.destinationPath)) {
-                $uniqueChanges[$c.destinationPath] = $c
+                $uniqueChanges[$key] = $c
+            } elseif (-not $uniqueChanges.ContainsKey($key)) {
+                $uniqueChanges[$key] = $c
             } else {
                 if ($c.changeType -ne 'add') {
-                    $uniqueChanges[$c.destinationPath] = $c
+                    $uniqueChanges[$key] = $c
                 }
             }
         }

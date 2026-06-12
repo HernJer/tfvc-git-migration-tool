@@ -73,7 +73,8 @@ function Invoke-TfvcMigration {
     Write-Host "  Mappings   : $($config.sourceMappings.Count) source path(s)" -ForegroundColor Gray
     foreach ($m in $config.sourceMappings) {
         $dest = if ($m.destinationPath) { $m.destinationPath } else { '(root)' }
-        Write-Host "               $($m.tfvcPath) -> $dest" -ForegroundColor DarkGray
+        $br   = Get-MappingBranch -Mapping $m
+        Write-Host "               $($m.tfvcPath) -> [$br] $dest" -ForegroundColor DarkGray
     }
     Write-Host "  Git Remote : $($config.gitRemoteUrl)" -ForegroundColor Gray
     Write-Host "  Output Dir : $($config.outputDir)" -ForegroundColor Gray

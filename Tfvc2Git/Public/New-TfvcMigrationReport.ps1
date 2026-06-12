@@ -1,132 +1,136 @@
-<#
-.SYNOPSIS
-    Generates a standalone HTML audit report for a TFVC-to-GitHub migration.
-.DESCRIPTION
-    Reads verification data produced by Verify.ps1 and generates a professional,
-    self-contained HTML report suitable for auditors and compliance review.
-.PARAMETER ConfigPath
-    Path to config.json. Defaults to ./config.json.
-#>
-[CmdletBinding()]
-param(
-    [string]$ConfigPath = "./config.json"
-)
+function New-TfvcMigrationReport {
+    <#
+    .SYNOPSIS
+        Generates a standalone HTML audit report for a TFVC-to-GitHub migration.
+    .DESCRIPTION
+        Reads verification data produced by Test-TfvcMigration and generates a
+        professional, self-contained HTML report suitable for auditors and
+        compliance review.
+    .PARAMETER ConfigPath
+        Path to config.json. Defaults to ./config.json.
+    .EXAMPLE
+        New-TfvcMigrationReport -ConfigPath ./config.json
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$ConfigPath = "./config.json"
+    )
 
-$ErrorActionPreference = 'Stop'
+    $ErrorActionPreference = 'Stop'
 
-function ConvertTo-HtmlSafe {
-    param([string]$Text)
-    if (-not $Text) { return '' }
-    $Text.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;').Replace('"', '&quot;').Replace("'", '&#39;')
-}
-
-function Get-TruncatedHash {
-    param([string]$Hash, [int]$Length = 16)
-    if (-not $Hash -or $Hash.Length -le $Length) { return $Hash }
-    $Hash.Substring(0, $Length) + '...'
-}
-
-try {
-    $config     = Get-Content $ConfigPath -Raw | ConvertFrom-Json
-    $outputDir  = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
-    $verifyDir  = Join-Path $outputDir 'verification'
-
-    $summary    = Get-Content (Join-Path $verifyDir 'summary.json') -Raw | ConvertFrom-Json
-    $hashCsv    = Import-Csv  (Join-Path $verifyDir 'hash-comparison.csv')
-    $csMappCsv  = Import-Csv  (Join-Path $verifyDir 'changeset-mapping.csv')
-    $invDiff    = Get-Content (Join-Path $verifyDir 'inventory-diff.json') -Raw | ConvertFrom-Json
-
-    $reportPath = Join-Path $outputDir 'audit-report.html'
-    $now        = (Get-Date).ToString('o')
-    $sourceServer = "$($config.adoServerUrl)/$($config.collection)/$($config.project)"
-
-    # -- Compute migration duration from changeset dates --------------
-    $dates = @($csMappCsv | Where-Object { $_.Date } | ForEach-Object {
-        try { [DateTime]::Parse($_.Date) } catch { $null }
-    } | Where-Object { $_ })
-
-    $migrationDuration = 'N/A'
-    if ($dates.Count -ge 2) {
-        $sorted = $dates | Sort-Object
-        $span   = $sorted[-1] - $sorted[0]
-        $migrationDuration = "$($sorted[0].ToString('yyyy-MM-dd')) to $($sorted[-1].ToString('yyyy-MM-dd')) ($([int]$span.TotalDays) days)"
+    function ConvertTo-HtmlSafe {
+        param([string]$Text)
+        if (-not $Text) { return '' }
+        $Text.Replace('&', '&amp;').Replace('<', '&lt;').Replace('>', '&gt;').Replace('"', '&quot;').Replace("'", '&#39;')
     }
 
-    # -- Build table rows --------------------------------------------─
-
-    # File Inventory discrepancies
-    $invDiscrepancyRows = ''
-    foreach ($f in $invDiff.onlyInTfvc) {
-        $safe = ConvertTo-HtmlSafe $f
-        $invDiscrepancyRows += "<tr><td class=`"mono`">$safe</td><td>TFVC only</td></tr>`n"
-    }
-    foreach ($f in $invDiff.onlyInGit) {
-        $safe = ConvertTo-HtmlSafe $f
-        $invDiscrepancyRows += "<tr><td class=`"mono`">$safe</td><td>Git only</td></tr>`n"
+    function Get-TruncatedHash {
+        param([string]$Hash, [int]$Length = 16)
+        if (-not $Hash -or $Hash.Length -le $Length) { return $Hash }
+        $Hash.Substring(0, $Length) + '...'
     }
 
-    # Hash comparison rows
-    $hashTableRows = ''
-    foreach ($row in $hashCsv) {
-        $path      = ConvertTo-HtmlSafe $row.Path
-        $tfvcFull  = ConvertTo-HtmlSafe $row.TfvcSHA256
-        $gitFull   = ConvertTo-HtmlSafe $row.GitSHA256
-        $tfvcShort = ConvertTo-HtmlSafe (Get-TruncatedHash $row.TfvcSHA256)
-        $gitShort  = ConvertTo-HtmlSafe (Get-TruncatedHash $row.GitSHA256)
-        $match     = $row.Match
-        $cls       = if ($match -ne 'True') { ' class="mismatch"' } else { '' }
-        $hashTableRows += "<tr$cls><td class=`"mono`">$path</td><td class=`"mono`" title=`"$tfvcFull`">$tfvcShort</td><td class=`"mono`" title=`"$gitFull`">$gitShort</td><td>$match</td></tr>`n"
-    }
+    try {
+        $config     = Get-Content $ConfigPath -Raw | ConvertFrom-Json
+        $outputDir  = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
+        $verifyDir  = Join-Path $outputDir 'verification'
 
-    # Changeset mapping rows
-    $unmappedSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($id in $summary.changesetCoverage.unmappedChangesets) { [void]$unmappedSet.Add("$id") }
+        $summary    = Get-Content (Join-Path $verifyDir 'summary.json') -Raw | ConvertFrom-Json
+        $hashCsv    = Import-Csv  (Join-Path $verifyDir 'hash-comparison.csv')
+        $csMappCsv  = Import-Csv  (Join-Path $verifyDir 'changeset-mapping.csv')
+        $invDiff    = Get-Content (Join-Path $verifyDir 'inventory-diff.json') -Raw | ConvertFrom-Json
 
-    $csTableRows = ''
-    foreach ($row in $csMappCsv) {
-        $csId    = ConvertTo-HtmlSafe $row.ChangesetId
-        $hash    = ConvertTo-HtmlSafe $row.GitCommitHash
-        $hashShort = if ($hash.Length -gt 8) { $hash.Substring(0, 8) } else { $hash }
-        $author  = ConvertTo-HtmlSafe $row.Author
-        $date    = ConvertTo-HtmlSafe $row.Date
-        $comment = ConvertTo-HtmlSafe $row.Comment
-        if ($comment.Length -gt 80) { $comment = $comment.Substring(0, 80) + '...' }
-        $cls     = if ($unmappedSet.Contains($row.ChangesetId)) { ' class="mismatch"' } else { '' }
-        $csTableRows += "<tr$cls><td>$csId</td><td class=`"mono`" title=`"$(ConvertTo-HtmlSafe $row.GitCommitHash)`">$hashShort</td><td>$author</td><td>$date</td><td>$comment</td></tr>`n"
-    }
+        $reportPath = Join-Path $outputDir 'audit-report.html'
+        $now        = (Get-Date).ToString('o')
+        $sourceServer = "$($config.adoServerUrl)/$($config.collection)/$($config.project)"
 
-    # Configuration (sanitized)
-    $sanitizedConfig = $config.PSObject.Copy()
-    $sanitizedConfig.pat = '***'
-    $configJson = ConvertTo-HtmlSafe ($sanitizedConfig | ConvertTo-Json -Depth 5)
+        # -- Compute migration duration from changeset dates --------------
+        $dates = @($csMappCsv | Where-Object { $_.Date } | ForEach-Object {
+            try { [DateTime]::Parse($_.Date) } catch { $null }
+        } | Where-Object { $_ })
 
-    $sourceMappingRows = ''
-    foreach ($m in $config.sourceMappings) {
-        $tp = ConvertTo-HtmlSafe $m.tfvcPath
-        $dp = ConvertTo-HtmlSafe $(if ($m.destinationPath) { $m.destinationPath } else { '(root)' })
-        $sourceMappingRows += "<tr><td class=`"mono`">$tp</td><td class=`"mono`">$dp</td></tr>`n"
-    }
+        $migrationDuration = 'N/A'
+        if ($dates.Count -ge 2) {
+            $sorted = $dates | Sort-Object
+            $span   = $sorted[-1] - $sorted[0]
+            $migrationDuration = "$($sorted[0].ToString('yyyy-MM-dd')) to $($sorted[-1].ToString('yyyy-MM-dd')) ($([int]$span.TotalDays) days)"
+        }
 
-    # -- Badge and result helpers ------------------------------------─
-    $overallBadge = if ($summary.overallResult -eq 'PASS') {
-        '<span class="badge pass">PASS</span>'
-    } else {
-        '<span class="badge fail">FAIL</span>'
-    }
+        # -- Build table rows --------------------------------------------─
 
-    function Get-ResultBadgeSmall($result) {
-        if ($result -eq 'PASS') { '<span class="badge-sm pass">PASS</span>' }
-        else { '<span class="badge-sm fail">FAIL</span>' }
-    }
+        # File Inventory discrepancies
+        $invDiscrepancyRows = ''
+        foreach ($f in $invDiff.onlyInTfvc) {
+            $safe = ConvertTo-HtmlSafe $f
+            $invDiscrepancyRows += "<tr><td class=`"mono`">$safe</td><td>TFVC only</td></tr>`n"
+        }
+        foreach ($f in $invDiff.onlyInGit) {
+            $safe = ConvertTo-HtmlSafe $f
+            $invDiscrepancyRows += "<tr><td class=`"mono`">$safe</td><td>Git only</td></tr>`n"
+        }
 
-    $invBadge  = Get-ResultBadgeSmall $summary.inventoryCheck.result
-    $hashBadge = Get-ResultBadgeSmall $summary.hashCheck.result
-    $csBadge   = Get-ResultBadgeSmall $summary.changesetCoverage.result
+        # Hash comparison rows
+        $hashTableRows = ''
+        foreach ($row in $hashCsv) {
+            $path      = ConvertTo-HtmlSafe $row.Path
+            $tfvcFull  = ConvertTo-HtmlSafe $row.TfvcSHA256
+            $gitFull   = ConvertTo-HtmlSafe $row.GitSHA256
+            $tfvcShort = ConvertTo-HtmlSafe (Get-TruncatedHash $row.TfvcSHA256)
+            $gitShort  = ConvertTo-HtmlSafe (Get-TruncatedHash $row.GitSHA256)
+            $match     = $row.Match
+            $cls       = if ($match -ne 'True') { ' class="mismatch"' } else { '' }
+            $hashTableRows += "<tr$cls><td class=`"mono`">$path</td><td class=`"mono`" title=`"$tfvcFull`">$tfvcShort</td><td class=`"mono`" title=`"$gitFull`">$gitShort</td><td>$match</td></tr>`n"
+        }
 
-    # Inventory discrepancy section
-    $invDiscrepancySection = ''
-    if ($invDiscrepancyRows) {
-        $invDiscrepancySection = @"
+        # Changeset mapping rows
+        $unmappedSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($id in $summary.changesetCoverage.unmappedChangesets) { [void]$unmappedSet.Add("$id") }
+
+        $csTableRows = ''
+        foreach ($row in $csMappCsv) {
+            $csId    = ConvertTo-HtmlSafe $row.ChangesetId
+            $hash    = ConvertTo-HtmlSafe $row.GitCommitHash
+            $hashShort = if ($hash.Length -gt 8) { $hash.Substring(0, 8) } else { $hash }
+            $author  = ConvertTo-HtmlSafe $row.Author
+            $date    = ConvertTo-HtmlSafe $row.Date
+            $comment = ConvertTo-HtmlSafe $row.Comment
+            if ($comment.Length -gt 80) { $comment = $comment.Substring(0, 80) + '...' }
+            $cls     = if ($unmappedSet.Contains($row.ChangesetId)) { ' class="mismatch"' } else { '' }
+            $csTableRows += "<tr$cls><td>$csId</td><td class=`"mono`" title=`"$(ConvertTo-HtmlSafe $row.GitCommitHash)`">$hashShort</td><td>$author</td><td>$date</td><td>$comment</td></tr>`n"
+        }
+
+        # Configuration (sanitized)
+        $sanitizedConfig = $config.PSObject.Copy()
+        $sanitizedConfig.pat = '***'
+        $configJson = ConvertTo-HtmlSafe ($sanitizedConfig | ConvertTo-Json -Depth 5)
+
+        $sourceMappingRows = ''
+        foreach ($m in $config.sourceMappings) {
+            $tp = ConvertTo-HtmlSafe $m.tfvcPath
+            $dp = ConvertTo-HtmlSafe $(if ($m.destinationPath) { $m.destinationPath } else { '(root)' })
+            $sourceMappingRows += "<tr><td class=`"mono`">$tp</td><td class=`"mono`">$dp</td></tr>`n"
+        }
+
+        # -- Badge and result helpers ------------------------------------─
+        $overallBadge = if ($summary.overallResult -eq 'PASS') {
+            '<span class="badge pass">PASS</span>'
+        } else {
+            '<span class="badge fail">FAIL</span>'
+        }
+
+        function Get-ResultBadgeSmall($result) {
+            if ($result -eq 'PASS') { '<span class="badge-sm pass">PASS</span>' }
+            else { '<span class="badge-sm fail">FAIL</span>' }
+        }
+
+        $invBadge  = Get-ResultBadgeSmall $summary.inventoryCheck.result
+        $hashBadge = Get-ResultBadgeSmall $summary.hashCheck.result
+        $csBadge   = Get-ResultBadgeSmall $summary.changesetCoverage.result
+
+        # Inventory discrepancy section
+        $invDiscrepancySection = ''
+        if ($invDiscrepancyRows) {
+            $invDiscrepancySection = @"
         <h3>Discrepancies</h3>
         <div class="table-scroll">
             <table>
@@ -135,10 +139,10 @@ try {
             </table>
         </div>
 "@
-    }
+        }
 
-    # -- HTML Template ------------------------------------------------
-    $html = @"
+        # -- HTML Template ------------------------------------------------
+        $html = @"
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -450,10 +454,11 @@ try {
 </html>
 "@
 
-    $html | Set-Content $reportPath -Encoding UTF8
-    Write-Host "Audit report generated: $reportPath"
-}
-catch {
-    Write-Error "Report generation failed: $_"
-    throw
+        $html | Set-Content $reportPath -Encoding UTF8
+        Write-Host "Audit report generated: $reportPath"
+    }
+    catch {
+        Write-Error "Report generation failed: $_"
+        throw
+    }
 }

@@ -64,20 +64,26 @@ jobs:
         shell: pwsh
         run: Write-Host '::warning::PSGALLERY_API_KEY secret not set - skipping PowerShell Gallery publish.'
 
-      # --- Chocolatey ---
+      # --- Chocolatey (best-effort: a push failure must not block the release) ---
       - name: Pack and push Chocolatey package
         shell: pwsh
         run: |
           choco pack build/choco/tfvc2git.nuspec --version ${{ steps.version.outputs.full }} --outputdirectory dist
+          if ($LASTEXITCODE -ne 0) { throw "choco pack failed (exit $LASTEXITCODE)." }
           if ($env:CHOCO_API_KEY) {
             choco push (Get-ChildItem dist/*.nupkg | Select-Object -First 1).FullName --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::warning::Chocolatey push failed (exit $LASTEXITCODE). This is commonly community-feed moderation while a prior version is pending review - the package can be pushed once approved. Continuing so PowerShell Gallery and the GitHub Release still complete."
+            }
           }
           else {
             Write-Host '::warning::CHOCO_API_KEY secret not set - packed .nupkg but skipped push.'
           }
+          exit 0
 
       # --- GitHub Release (via the runner's built-in gh CLI; no Node action) ---
       - name: Create GitHub Release
+        if: ${{ !cancelled() }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

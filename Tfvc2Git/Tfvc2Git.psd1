@@ -21,6 +21,7 @@
     # Functions to export from this module. Keep this explicit (no wildcards)
     # so import is fast and PSGallery analysis is clean.
     FunctionsToExport = @(
+        'Invoke-Tfvc2Git',
         'Invoke-TfvcMigration',
         'New-TfvcMigrationConfig',
         'Export-TfvcChangeset',

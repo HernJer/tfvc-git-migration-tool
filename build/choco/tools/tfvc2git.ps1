@@ -6,4 +6,4 @@
     behave the same as calling Invoke-TfvcMigration directly.
 #>
 Import-Module Tfvc2Git -ErrorAction Stop
-Invoke-TfvcMigration @args
+Invoke-Tfvc2Git @args

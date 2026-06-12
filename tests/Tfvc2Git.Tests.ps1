@@ -27,6 +27,7 @@ Describe 'Module manifest' {
 Describe 'Exported commands' {
     BeforeAll {
         $script:Expected = @(
+            'Invoke-Tfvc2Git',
             'Invoke-TfvcMigration',
             'New-TfvcMigrationConfig',
             'Export-TfvcChangeset',
@@ -46,10 +47,10 @@ Describe 'Exported commands' {
         $actual | Should -Be ($script:Expected | Sort-Object)
     }
 
-    It 'exposes the tfvc2git alias for Invoke-TfvcMigration' {
+    It 'exposes the tfvc2git alias for the dispatcher' {
         $alias = Get-Command -Module $script:ModuleName -CommandType Alias -Name 'tfvc2git' -ErrorAction SilentlyContinue
         $alias | Should -Not -BeNullOrEmpty
-        $alias.ResolvedCommand.Name | Should -Be 'Invoke-TfvcMigration'
+        $alias.ResolvedCommand.Name | Should -Be 'Invoke-Tfvc2Git'
     }
 
     It 'does not leak private API functions' {
@@ -109,5 +110,40 @@ Describe 'New-TfvcConnection (private)' {
             $conn.UseDefaultCredentials | Should -BeFalse
             $conn.Headers.Authorization | Should -Match '^Basic '
         }
+    }
+}
+
+Describe 'Invoke-Tfvc2Git dispatcher' {
+    It 'routes subcommand "<Sub>" to <Target>' -ForEach @(
+        @{ Sub = 'config';          Target = 'New-TfvcMigrationConfig' }
+        @{ Sub = '--create-config'; Target = 'New-TfvcMigrationConfig' }
+        @{ Sub = 'init';            Target = 'New-TfvcMigrationConfig' }
+        @{ Sub = 'run';             Target = 'Invoke-TfvcMigration' }
+        @{ Sub = 'export';          Target = 'Export-TfvcChangeset' }
+        @{ Sub = 'replay';          Target = 'Invoke-TfvcReplay' }
+        @{ Sub = 'verify';          Target = 'Test-TfvcMigration' }
+        @{ Sub = 'report';          Target = 'New-TfvcMigrationReport' }
+    ) {
+        Mock -CommandName $Target -ModuleName $script:ModuleName -MockWith {}
+        Invoke-Tfvc2Git $Sub
+        Should -Invoke -CommandName $Target -ModuleName $script:ModuleName -Times 1 -Exactly
+    }
+
+    It 'defaults to Invoke-TfvcMigration when the first argument is a switch' {
+        Mock -CommandName Invoke-TfvcMigration -ModuleName $script:ModuleName -MockWith {}
+        Invoke-Tfvc2Git -DryRun
+        Should -Invoke -CommandName Invoke-TfvcMigration -ModuleName $script:ModuleName -Times 1 -Exactly
+    }
+
+    It 'forwards remaining arguments to the target cmdlet' {
+        Mock -CommandName Test-TfvcMigration -ModuleName $script:ModuleName -MockWith {}
+        Invoke-Tfvc2Git verify -ConfigPath 'C:\x\config.json'
+        Should -Invoke -CommandName Test-TfvcMigration -ModuleName $script:ModuleName -Times 1 -Exactly -ParameterFilter {
+            $ConfigPath -eq 'C:\x\config.json'
+        }
+    }
+
+    It 'errors on an unknown subcommand' {
+        { Invoke-Tfvc2Git frobnicate } | Should -Throw
     }
 }

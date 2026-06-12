@@ -51,11 +51,14 @@ The module exports one cmdlet per pipeline stage, plus an orchestrator. You will
 | `New-TfvcMigrationReport` | Generate a standalone HTML audit document. |
 | `Invoke-TfvcMigration` | Orchestrate all steps sequentially with progress reporting. |
 
-> **`tfvc2git` shortcut:** `tfvc2git` is a built-in alias for `Invoke-TfvcMigration`. In any PowerShell session you can run `tfvc2git -Push`. A **Chocolatey** install additionally shims `tfvc2git` onto your `PATH`, so it also works from `cmd.exe` and Windows Terminal:
+> **The `tfvc2git` command:** the whole tool is reachable through a single `tfvc2git` command that dispatches to the cmdlets above. After a **Chocolatey** install it's shimmed onto your `PATH`, so it works from `cmd.exe`, PowerShell, and Windows Terminal:
 > ```
-> C:\> tfvc2git -ConfigPath .\config.json -Push
+> tfvc2git config                            # generate config.json (also: --create-config, init)
+> tfvc2git -ConfigPath .\config.json -Push   # run the full migration (default)
+> tfvc2git verify -ConfigPath .\config.json  # subcommands: export | replay | verify | report
+> tfvc2git help
 > ```
-> Interactive config generation stays in PowerShell (`New-TfvcMigrationConfig`).
+> Bare options with no subcommand run the migration, so `tfvc2git -Push` still works. The individual cmdlets remain available for idiomatic PowerShell use.
 
 Run `Get-Help <cmdlet> -Full` for parameters and examples.
 
@@ -84,21 +87,21 @@ New-TfvcMigrationConfig → Export-TfvcChangeset → Invoke-TfvcReplay → Test-
 ## Quick Start
 
 ```powershell
-Import-Module Tfvc2Git
-
 # 1. Generate config interactively
-# Note: For on-premise HTTP servers, just press Enter when prompted for the PAT to use Windows Auth.
-New-TfvcMigrationConfig
+#    (Press Enter at the PAT prompt to use Windows Auth on on-prem HTTP servers.)
+tfvc2git config
 
-# 2. Run a Dry-Run first to test extraction
-Invoke-TfvcMigration -DryRun
+# 2. Dry-run first to test extraction
+tfvc2git -DryRun
 
 # 3. Run the full migration and push to GitHub
-Invoke-TfvcMigration -Push
+tfvc2git -Push
 
 # 4. Review the audit report
 Start-Process .\migration-output\audit-report.html
 ```
+
+The `tfvc2git` command auto-loads the module on first use (no `Import-Module` needed). Prefer the named cmdlets? `New-TfvcMigrationConfig` and `Invoke-TfvcMigration -DryRun` do the same thing.
 
 ---
 

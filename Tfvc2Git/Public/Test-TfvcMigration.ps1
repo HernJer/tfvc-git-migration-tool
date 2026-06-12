@@ -61,11 +61,11 @@ function Test-TfvcMigration {
         $compared   = 0
 
         foreach ($b in $branches) {
-            git -C $repoPath rev-parse --verify -q "refs/heads/$b" > $null 2>&1
+            Invoke-Git -C $repoPath rev-parse --verify -q "refs/heads/$b" > $null 2>&1
             $branchExists = ($LASTEXITCODE -eq 0)
             if ($branchExists) {
                 [void]$existingBranches.Add($b)
-                git -C $repoPath checkout $b 2>&1 | Out-Null
+                Invoke-Git -C $repoPath checkout $b 2>&1 | Out-Null
             }
 
             Write-MigrationLog "Pass 1 [$b]: file inventory" -LogFile $logFile
@@ -90,7 +90,7 @@ function Test-TfvcMigration {
             # Git files on this branch
             $gitFiles = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
             if ($branchExists) {
-                $gitOutput = & git -C $repoPath ls-files 2>&1
+                $gitOutput = Invoke-Git -C $repoPath ls-files 2>&1
                 if ($LASTEXITCODE -ne 0) { throw "git ls-files failed on '$b': $gitOutput" }
                 foreach ($line in ($gitOutput -split "`n")) {
                     $f = $line.Trim()
@@ -170,7 +170,7 @@ function Test-TfvcMigration {
         $totalMappedCommits = 0
 
         foreach ($b in $existingBranches) {
-            $gitLogOutput = & git -C $repoPath log $b --format="%H|||%an|||%ai|||%s|||%b" 2>&1
+            $gitLogOutput = Invoke-Git -C $repoPath log $b --format="%H|||%an|||%ai|||%s|||%b" 2>&1
             if ($LASTEXITCODE -ne 0) { throw "git log failed on '$b': $gitLogOutput" }
             foreach ($line in ($gitLogOutput -split "`n")) {
                 $line = $line.Trim()
@@ -205,7 +205,7 @@ function Test-TfvcMigration {
         Write-MigrationLog "  Exported changesets: $($exportedIds.Count)  Mapped commits: $totalMappedCommits  Unmapped: $($unmappedCs.Count)  Orphaned: $($orphanedCommits.Count)" -LogFile $logFile
 
         # Leave the repo on the primary branch.
-        git -C $repoPath checkout $primaryBranch 2>&1 | Out-Null
+        Invoke-Git -C $repoPath checkout $primaryBranch 2>&1 | Out-Null
 
         # -- Summary ------------------------------------------------------
         $invResult  = if ($allOnlyInTfvc.Count -eq 0 -and $allOnlyInGit.Count -eq 0) { 'PASS' } else { 'FAIL' }

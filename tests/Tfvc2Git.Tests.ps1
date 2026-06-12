@@ -228,3 +228,24 @@ Describe 'Branch mapping helpers (private)' {
         }
     }
 }
+
+Describe 'Invoke-Git (private)' {
+    It 'does not let git stderr abort under ErrorActionPreference=Stop' {
+        InModuleScope $script:ModuleName {
+            $repo = Join-Path ([System.IO.Path]::GetTempPath()) "tfvc2git-git-$([guid]::NewGuid())"
+            New-Item -ItemType Directory -Path $repo -Force | Out-Null
+            try {
+                Invoke-Git -C $repo init | Out-Null
+                # 'git checkout --orphan' writes "Switched to a new branch 'X'" to
+                # stderr; with $ErrorActionPreference='Stop' that used to terminate
+                # the whole replay. Invoke-Git must swallow it.
+                $ErrorActionPreference = 'Stop'
+                { Invoke-Git -C $repo checkout --orphan develop-initial 2>&1 | Out-Null } | Should -Not -Throw
+                $LASTEXITCODE | Should -Be 0
+            }
+            finally {
+                Remove-Item $repo -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+}

@@ -69,11 +69,11 @@ function Invoke-TfvcReplay {
     if (-not (Test-Path (Join-Path $repoPath '.git'))) {
         Write-MigrationLog -Message "Initialising Git repo at $repoPath" -LogFile $logFile
         git init $repoPath
-        git -C $repoPath config core.autocrlf false
-        git -C $repoPath config core.safecrlf false
+        Invoke-Git -C $repoPath config core.autocrlf false
+        Invoke-Git -C $repoPath config core.safecrlf false
 
         if ($config.gitRemoteUrl) {
-            git -C $repoPath remote add origin $config.gitRemoteUrl
+            Invoke-Git -C $repoPath remote add origin $config.gitRemoteUrl
             Write-MigrationLog -Message "Remote 'origin' set to $($config.gitRemoteUrl)" -LogFile $logFile
         }
     }
@@ -82,10 +82,10 @@ function Invoke-TfvcReplay {
 
     $lfsAvailable = $false
     try {
-        $null = git lfs version 2>&1
+        $null = Invoke-Git lfs version 2>&1
         if ($LASTEXITCODE -eq 0) {
             $lfsAvailable = $true
-            git -C $repoPath lfs install --local 2>&1 | Out-Null
+            Invoke-Git -C $repoPath lfs install --local 2>&1 | Out-Null
             Write-MigrationLog -Message "Git LFS is available and initialised" -LogFile $logFile
         }
     }
@@ -136,7 +136,7 @@ function Invoke-TfvcReplay {
 
         if ($lfsAvailable) {
             Push-Location $repoPath
-            try { git lfs track $Pattern 2>&1 | Out-Null }
+            try { Invoke-Git lfs track $Pattern 2>&1 | Out-Null }
             finally { Pop-Location }
             Write-MigrationLog -Message "LFS tracking added for: $Pattern" -LogFile $logFile
         }
@@ -180,13 +180,13 @@ function Invoke-TfvcReplay {
     function Start-OrphanBranch {
         param([string]$Branch)
         # If any commit exists, detach so we can (re)create the branch from nothing.
-        git -C $repoPath rev-parse --verify -q HEAD > $null 2>&1
+        Invoke-Git -C $repoPath rev-parse --verify -q HEAD > $null 2>&1
         if ($LASTEXITCODE -eq 0) {
-            git -C $repoPath checkout --detach 2>&1 | Out-Null
-            git -C $repoPath branch -D $Branch 2>&1 | Out-Null
+            Invoke-Git -C $repoPath checkout --detach 2>&1 | Out-Null
+            Invoke-Git -C $repoPath branch -D $Branch 2>&1 | Out-Null
         }
-        git -C $repoPath checkout --orphan $Branch 2>&1 | Out-Null
-        git -C $repoPath read-tree --empty 2>&1 | Out-Null
+        Invoke-Git -C $repoPath checkout --orphan $Branch 2>&1 | Out-Null
+        Invoke-Git -C $repoPath read-tree --empty 2>&1 | Out-Null
         # Physically clear the working tree (except .git) so the branch starts empty.
         Get-ChildItem -LiteralPath $repoPath -Force |
             Where-Object { $_.Name -ne '.git' } |
@@ -202,7 +202,7 @@ function Invoke-TfvcReplay {
             [int]$LastChangesetId,
             [int]$TotalReplayed
         )
-        $lastHash = (git -C $repoPath rev-parse HEAD 2>&1).Trim()
+        $lastHash = (Invoke-Git -C $repoPath rev-parse HEAD 2>&1).Trim()
         @{
             completedBranches = @($CompletedBranches)
             currentBranch     = $CurrentBranch
@@ -251,7 +251,7 @@ function Invoke-TfvcReplay {
             }
         }
 
-        git -C $repoPath add -A 2>&1 | Out-Null
+        Invoke-Git -C $repoPath add -A 2>&1 | Out-Null
 
         $body = $(if ($cs.comment) { $cs.comment } else { '' })
         $trailer  = "`n---"
@@ -272,7 +272,7 @@ function Invoke-TfvcReplay {
             $env:GIT_AUTHOR_EMAIL    = "$($cs.author)@tfvc.local"
             $env:GIT_AUTHOR_DATE     = $cs.createdDate
             $env:GIT_COMMITTER_DATE  = $cs.createdDate
-            git -C $repoPath commit -F $tempMsgFile --allow-empty 2>&1 | Out-Null
+            Invoke-Git -C $repoPath commit -F $tempMsgFile --allow-empty 2>&1 | Out-Null
         }
         finally {
             $env:GIT_AUTHOR_NAME    = $null
@@ -346,7 +346,7 @@ function Invoke-TfvcReplay {
         $branchResumeAfterId = 0
         if ($Resume -and $b -eq $resumeCurrentBranch -and $resumeAfterId -gt 0) {
             Write-MigrationLog -Message "Resuming branch '$b' after changeset $resumeAfterId" -LogFile $logFile
-            git -C $repoPath checkout $b 2>&1 | Out-Null
+            Invoke-Git -C $repoPath checkout $b 2>&1 | Out-Null
             $branchResumeAfterId = $resumeAfterId
         }
         else {
@@ -380,7 +380,7 @@ function Invoke-TfvcReplay {
     }
 
     # Leave the repo on the primary branch (its natural default).
-    git -C $repoPath checkout $primaryBranch 2>&1 | Out-Null
+    Invoke-Git -C $repoPath checkout $primaryBranch 2>&1 | Out-Null
 
     Write-MigrationLog -Message "Replay complete. $totalReplayed commits across $($branches.Count) branch(es)." -LogFile $logFile
 
@@ -388,7 +388,7 @@ function Invoke-TfvcReplay {
 
     if ($Push) {
         Write-MigrationLog -Message "Pushing all branches to remote..." -LogFile $logFile
-        git -C $repoPath push -u origin --all 2>&1
+        Invoke-Git -C $repoPath push -u origin --all 2>&1
         Write-MigrationLog -Message "Push complete (branches: $($branches -join ', '))" -LogFile $logFile
     }
 

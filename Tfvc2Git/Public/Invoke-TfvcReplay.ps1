@@ -52,6 +52,9 @@ function Invoke-TfvcReplay {
     # How many file downloads to run concurrently per changeset (config-tunable).
     $downloadConcurrency = $(if ($null -ne $config.psobject.Properties['downloadConcurrency'] -and $config.downloadConcurrency) { [int]$config.downloadConcurrency } else { 8 })
 
+    # Add a Visual Studio .gitignore to each branch (after its history) unless disabled.
+    $addGitignore = $(if ($null -ne $config.psobject.Properties['addGitignore']) { [bool]$config.addGitignore } else { $true })
+
     Write-MigrationLog -Message "=== Git Replay started ===" -LogFile $logFile
     Write-MigrationLog -Message "Total changesets in export: $($changesets.Count)" -LogFile $logFile
     Write-MigrationLog -Message "Download concurrency: $downloadConcurrency" -LogFile $logFile
@@ -145,9 +148,12 @@ function Invoke-TfvcReplay {
             Write-MigrationLog -Message "LFS tracking added for: $Pattern" -LogFile $logFile
         }
         else {
-            "$Pattern filter=lfs diff=lfs merge=lfs -text" |
-                Add-Content -Path $gitattributes -Encoding UTF8
-            Write-MigrationLog -Message "LFS pattern added to .gitattributes (git lfs not available): $Pattern" -Level WARN -LogFile $logFile
+            # git-lfs is NOT installed: commit these files directly. Do NOT write a
+            # 'filter=lfs' entry to .gitattributes - git would then try to run the
+            # missing git-lfs clean filter on 'git add' and fail, which silently
+            # produces empty commits and leaves files untracked. Install git-lfs
+            # before migrating if you want large files stored via LFS.
+            Write-MigrationLog -Message "git-lfs not available - committing '$Pattern' files directly (no LFS)." -Level WARN -LogFile $logFile
         }
     }
 
@@ -266,7 +272,10 @@ function Invoke-TfvcReplay {
             }
         }
 
-        Invoke-Git -C $repoPath add -A 2>&1 | Out-Null
+        $addOut = Invoke-Git -C $repoPath add -A 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "git add failed for changeset $($cs.changesetId) (exit $LASTEXITCODE): $addOut"
+        }
 
         $body = $(if ($cs.comment) { $cs.comment } else { '' })
         $trailer  = "`n---"
@@ -283,20 +292,61 @@ function Invoke-TfvcReplay {
         [System.IO.File]::WriteAllText($tempMsgFile, $commitMsg, [System.Text.Encoding]::UTF8)
 
         try {
-            $env:GIT_AUTHOR_NAME     = $cs.author
-            $env:GIT_AUTHOR_EMAIL    = "$($cs.author)@tfvc.local"
-            $env:GIT_AUTHOR_DATE     = $cs.createdDate
-            $env:GIT_COMMITTER_DATE  = $cs.createdDate
-            Invoke-Git -C $repoPath commit -F $tempMsgFile --allow-empty 2>&1 | Out-Null
+            $env:GIT_AUTHOR_NAME      = $cs.author
+            $env:GIT_AUTHOR_EMAIL     = "$($cs.author)@tfvc.local"
+            $env:GIT_AUTHOR_DATE      = $cs.createdDate
+            # Set committer too (the repo has no user.name/email configured, so
+            # without this 'git commit' can fail with "committer identity unknown").
+            $env:GIT_COMMITTER_NAME   = $cs.author
+            $env:GIT_COMMITTER_EMAIL  = "$($cs.author)@tfvc.local"
+            $env:GIT_COMMITTER_DATE   = $cs.createdDate
+            $commitOut = Invoke-Git -C $repoPath commit -F $tempMsgFile --allow-empty 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "git commit failed for changeset $($cs.changesetId) (exit $LASTEXITCODE): $commitOut"
+            }
         }
         finally {
-            $env:GIT_AUTHOR_NAME    = $null
-            $env:GIT_AUTHOR_EMAIL   = $null
-            $env:GIT_AUTHOR_DATE    = $null
-            $env:GIT_COMMITTER_DATE = $null
+            $env:GIT_AUTHOR_NAME     = $null
+            $env:GIT_AUTHOR_EMAIL    = $null
+            $env:GIT_AUTHOR_DATE     = $null
+            $env:GIT_COMMITTER_NAME  = $null
+            $env:GIT_COMMITTER_EMAIL = $null
+            $env:GIT_COMMITTER_DATE  = $null
         }
 
         Remove-Item $tempMsgFile -ErrorAction SilentlyContinue
+    }
+
+    # --- Helper: add a Visual Studio .gitignore as a final commit on the branch ---
+
+    function Add-GitignoreCommit {
+        $giPath = Join-Path $repoPath '.gitignore'
+        if (Test-Path $giPath) { return }   # branch already has one (migrated from TFVC)
+
+        [System.IO.File]::WriteAllText($giPath, (Get-VisualStudioGitignore), [System.Text.Encoding]::UTF8)
+        $addOut = Invoke-Git -C $repoPath add -- .gitignore 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "git add .gitignore failed (exit $LASTEXITCODE): $addOut" }
+
+        # Marker in the footer so verification doesn't flag this as an orphan commit.
+        $msg = "Add .gitignore (Visual Studio template)`n`n---`nTfvc2Git-Generated: gitignore"
+        $tmp = Join-Path $outputDir 'gitignore-msg.tmp'
+        [System.IO.File]::WriteAllText($tmp, $msg, [System.Text.Encoding]::UTF8)
+        try {
+            $env:GIT_AUTHOR_NAME      = 'tfvc2git'
+            $env:GIT_AUTHOR_EMAIL     = 'noreply@tfvc2git.local'
+            $env:GIT_COMMITTER_NAME   = 'tfvc2git'
+            $env:GIT_COMMITTER_EMAIL  = 'noreply@tfvc2git.local'
+            $commitOut = Invoke-Git -C $repoPath commit -F $tmp 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "git commit .gitignore failed (exit $LASTEXITCODE): $commitOut" }
+        }
+        finally {
+            $env:GIT_AUTHOR_NAME     = $null
+            $env:GIT_AUTHOR_EMAIL    = $null
+            $env:GIT_COMMITTER_NAME  = $null
+            $env:GIT_COMMITTER_EMAIL = $null
+        }
+        Remove-Item $tmp -ErrorAction SilentlyContinue
+        Write-MigrationLog -Message "Added Visual Studio .gitignore to branch" -LogFile $logFile
     }
 
     # --- Group changesets per branch (ascending order is preserved) ---
@@ -388,6 +438,8 @@ function Invoke-TfvcReplay {
                 Save-ReplayCheckpoint -CompletedBranches $completedBranches -CurrentBranch $b -LastChangesetId $cs.changesetId -TotalReplayed $totalReplayed
             }
         }
+
+        if ($addGitignore) { Add-GitignoreCommit }
 
         $completedBranches += $b
         Save-ReplayCheckpoint -CompletedBranches $completedBranches -CurrentBranch '' -LastChangesetId 0 -TotalReplayed $totalReplayed

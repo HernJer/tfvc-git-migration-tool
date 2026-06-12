@@ -29,5 +29,6 @@
     "outputDir": "./migration-output",
     "lfsThresholdBytes": 52428800,
     "lfsPatterns": ["*.dll", "*.exe", "*.zip", "*.nupkg"],
-    "downloadConcurrency": 8
+    "downloadConcurrency": 8,
+    "addGitignore": true
 }

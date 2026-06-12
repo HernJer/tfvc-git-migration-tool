@@ -100,7 +100,7 @@ function Test-TfvcMigration {
             }
 
             $onlyInTfvc = @($tfvcFiles | Where-Object { -not $gitFiles.Contains($_) })
-            $onlyInGit  = @($gitFiles  | Where-Object { -not $tfvcFiles.Contains($_) -and $_ -ne '.gitattributes' })
+            $onlyInGit  = @($gitFiles  | Where-Object { -not $tfvcFiles.Contains($_) -and $_ -ne '.gitattributes' -and $_ -ne '.gitignore' })
             $inBoth     = @($tfvcFiles | Where-Object { $gitFiles.Contains($_) })
 
             foreach ($f in $onlyInTfvc) { [void]$allOnlyInTfvc.Add("${b}:$f") }
@@ -200,6 +200,10 @@ function Test-TfvcMigration {
                 $date   = $parts[2].Trim()
                 $subj   = if ($parts.Count -gt 3) { $parts[3].Trim() } else { '' }
                 $body   = if ($parts.Count -gt 4) { $parts[4].Trim() } else { '' }
+
+                # Commits tfvc2git generated itself (e.g. the .gitignore commit)
+                # are not changesets and must not count as orphaned.
+                if ($body -match 'Tfvc2Git-Generated' -or $subj -match 'Tfvc2Git-Generated') { continue }
 
                 $csId = $null
                 if ($body -match 'TFVC-Changeset:\s*(\d+)') { $csId = [int]$Matches[1] }

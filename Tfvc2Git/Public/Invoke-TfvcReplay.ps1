@@ -35,7 +35,7 @@ function Invoke-TfvcReplay {
 
     $changesetsFile = Join-Path $outputDir 'changesets.json'
     if (-not (Test-Path $changesetsFile)) {
-        throw "changesets.json not found at $changesetsFile. Run Export-TfvcChangeset first."
+        throw "Exported changesets not found at: $changesetsFile`nRun 'tfvc2git export' (or 'tfvc2git -DryRun') first."
     }
 
     $export = Get-Content -Path $changesetsFile -Raw | ConvertFrom-Json

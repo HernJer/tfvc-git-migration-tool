@@ -60,9 +60,7 @@ function Invoke-TfvcMigration {
     # --- Validate config ---
     $resolvedConfig = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ConfigPath)
     if (-not (Test-Path $resolvedConfig)) {
-        Write-Host "  [x] Config file not found: $resolvedConfig" -ForegroundColor Red
-        Write-Host '  Run New-TfvcMigrationConfig first, or supply -ConfigPath.' -ForegroundColor Yellow
-        throw "Config file not found: $resolvedConfig"
+        throw "Config file not found: $resolvedConfig`nRun 'tfvc2git config' to create one, or pass -ConfigPath <path>."
     }
 
     # --- Load and display config summary ---

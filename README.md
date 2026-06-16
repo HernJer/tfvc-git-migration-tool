@@ -1,6 +1,8 @@
 # TFVC → GitHub Migration Tool
 
-Migrate specific folders from an on-premise Azure DevOps Server (2020/2022) TFVC repository to GitHub, preserving full changeset history and producing a verifiable, audit-grade trail.
+The `tfvc2git` tool provides a robust, reproducible, and auditable path for migrating complex TFVC repositories to Git (e.g. GitHub or Azure Repos). It guarantees zero data loss by performing a rigorous 3-pass cryptographic hash verification across the entire repository history.
+
+For an exhaustive dive into the architecture, edge cases, and configuration, please see the [**Detailed Documentation**](./docs/index.md).
 
 Ships as the **`Tfvc2Git`** PowerShell module — a command-line tool you install once and drive from any Windows PowerShell session.
 
@@ -228,6 +230,8 @@ These artifacts mathematically prove that the migration is complete, the file co
 ---
 
 ## Troubleshooting
+
+For a comprehensive guide on handling edge cases like network interruptions, Missing File errors, and Remote Push rejections, please see the [Troubleshooting & Edge Cases](./docs/troubleshooting-and-edge-cases.md) documentation.
 
 ### HTTP 400 Bad Request during configuration
 If your Azure DevOps server is on-premises and uses `http://` instead of `https://`, IIS will often reject Personal Access Tokens (Basic Auth) for security reasons.

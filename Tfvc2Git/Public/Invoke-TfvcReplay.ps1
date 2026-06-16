@@ -484,7 +484,11 @@ function Invoke-TfvcReplay {
 
     if ($Push) {
         Write-MigrationLog -Message "Pushing all branches to remote..." -LogFile $logFile
-        Invoke-Git -C $repoPath push -u origin --all 2>&1
+        $pushOut = Invoke-Git -C $repoPath push -u origin --all 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-MigrationLog -Message "Push failed: $pushOut" -Level ERROR -LogFile $logFile
+            throw "Failed to push branches to remote 'origin' (exit code $LASTEXITCODE). See log for details: $pushOut"
+        }
         Write-MigrationLog -Message "Push complete (branches: $($branches -join ', '))" -LogFile $logFile
     }
 

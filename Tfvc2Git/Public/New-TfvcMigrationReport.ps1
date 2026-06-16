@@ -44,16 +44,41 @@ function New-TfvcMigrationReport {
         $now        = (Get-Date).ToString('o')
         $sourceServer = "$($config.adoServerUrl)/$($config.collection)/$($config.project)"
 
-        # -- Compute migration duration from changeset dates --------------
+        # -- Compute migration timeline from changeset dates --------------
         $dates = @($csMappCsv | Where-Object { $_.Date } | ForEach-Object {
             try { [DateTime]::Parse($_.Date) } catch { $null }
         } | Where-Object { $_ })
 
-        $migrationDuration = 'N/A'
+        $migrationTimeline = 'N/A'
         if ($dates.Count -ge 2) {
             $sorted = $dates | Sort-Object
             $span   = $sorted[-1] - $sorted[0]
-            $migrationDuration = "$($sorted[0].ToString('yyyy-MM-dd')) to $($sorted[-1].ToString('yyyy-MM-dd')) ($([int]$span.TotalDays) days)"
+            $migrationTimeline = "$($sorted[0].ToString('yyyy-MM-dd')) to $($sorted[-1].ToString('yyyy-MM-dd')) ($([int]$span.TotalDays) days)"
+        }
+
+        # -- Compute execution duration from log file --------------
+        $logPath = Join-Path $outputDir 'migration-log.txt'
+        $executionDuration = 'N/A'
+        if (Test-Path $logPath) {
+            $logLines = Get-Content $logPath
+            if ($logLines.Count -ge 2) {
+                $firstLine = $logLines[0]
+                $lastLine = $logLines[-1]
+                $start = $null
+                $end = $null
+                if ($firstLine -match '^\[(.*?)\]') { try { $start = [DateTime]::Parse($Matches[1]) } catch {} }
+                if ($lastLine -match '^\[(.*?)\]') { try { $end = [DateTime]::Parse($Matches[1]) } catch {} }
+                if ($start -and $end) {
+                    $span = $end - $start
+                    
+                    $hours = [math]::Floor($span.TotalHours)
+                    $mins  = $span.Minutes.ToString('D2')
+                    $secs  = $span.Seconds.ToString('D2')
+                    $formattedTime = "$($hours):$($mins):$($secs)"
+                    
+                    $executionDuration = "$($start.ToString('HH:mm:ss')) to $($end.ToString('HH:mm:ss')) ($formattedTime)"
+                }
+            }
         }
 
         # -- Build table rows --------------------------------------------─
@@ -128,6 +153,9 @@ function New-TfvcMigrationReport {
         $invBadge  = Get-ResultBadgeSmall $summary.inventoryCheck.result
         $hashBadge = Get-ResultBadgeSmall $summary.hashCheck.result
         $csBadge   = Get-ResultBadgeSmall $summary.changesetCoverage.result
+        
+        $pushBadgeText = if ($summary.remotePushVerification) { $summary.remotePushVerification.result } else { 'N/A' }
+        $pushBadge = if ($pushBadgeText -eq 'N/A') { '<span class="badge-sm" style="background:#6c757d;color:#fff;">N/A</span>' } else { Get-ResultBadgeSmall $pushBadgeText }
 
         # Inventory discrepancy section
         $invDiscrepancySection = ''
@@ -372,10 +400,12 @@ function New-TfvcMigrationReport {
                 <tbody>
                     <tr><td><strong>Source Server</strong></td><td class="mono">$(ConvertTo-HtmlSafe $sourceServer)</td></tr>
                     <tr><td><strong>Target Repository</strong></td><td class="mono">$(ConvertTo-HtmlSafe $config.gitRemoteUrl)</td></tr>
-                    <tr><td><strong>Migration Duration</strong></td><td>$(ConvertTo-HtmlSafe $migrationDuration)</td></tr>
+                    <tr><td><strong>Migration Timeline</strong></td><td>$(ConvertTo-HtmlSafe $migrationTimeline)</td></tr>
+                    <tr><td><strong>Execution Duration</strong></td><td>$(ConvertTo-HtmlSafe $executionDuration)</td></tr>
                     <tr><td><strong>Inventory Check</strong></td><td>$invBadge</td></tr>
                     <tr><td><strong>File Integrity</strong></td><td>$hashBadge</td></tr>
                     <tr><td><strong>Changeset Coverage</strong></td><td>$csBadge</td></tr>
+                    <tr><td><strong>Remote Push</strong></td><td>$pushBadge</td></tr>
                 </tbody>
             </table>
         </section>
@@ -422,9 +452,24 @@ function New-TfvcMigrationReport {
             </div>
         </section>
 
-        <!-- Section 5: Known Gaps -->
+        <!-- Section 5: Remote Push -->
         <section>
-            <h2>5. Known Gaps</h2>
+            <h2>5. Remote Push $pushBadge</h2>
+            $(if ($summary.remotePushVerification -and $summary.remotePushVerification.result -ne 'N/A') {
+                "<p><strong>Target Remote:</strong> $(ConvertTo-HtmlSafe $summary.remotePushVerification.remoteUrl)</p>" +
+                $(if ($summary.remotePushVerification.unpushedBranches.Count -gt 0) {
+                    "<p class=`"mismatch`"><strong>$($summary.remotePushVerification.unpushedBranches.Count) branch(es) NOT up-to-date:</strong> " + ($summary.remotePushVerification.unpushedBranches -join ', ') + "</p>"
+                } else {
+                    "<p>All branches are fully pushed and synced.</p>"
+                })
+            } else {
+                "<p>No remote `origin` was configured. Verification skipped.</p>"
+            })
+        </section>
+
+        <!-- Section 6: Known Gaps -->
+        <section>
+            <h2>6. Known Gaps</h2>
             <p>The following TFVC concepts are <strong>not</strong> migrated and are outside the scope of this tool:</p>
             <ul class="gaps-list">
                 <li><strong>Shelvesets</strong> &mdash; Pending changes stored on the server are not migrated.</li>
@@ -435,9 +480,9 @@ function New-TfvcMigrationReport {
             </ul>
         </section>
 
-        <!-- Section 6: Configuration -->
+        <!-- Section 7: Configuration -->
         <section>
-            <h2>6. Configuration</h2>
+            <h2>7. Configuration</h2>
             <h3>Source Mappings</h3>
             <table style="max-width: 700px;">
                 <thead><tr><th>TFVC Path</th><th>Destination Path</th></tr></thead>

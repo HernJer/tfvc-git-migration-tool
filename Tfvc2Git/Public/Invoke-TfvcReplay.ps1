@@ -32,7 +32,8 @@ function Invoke-TfvcReplay {
     $ErrorActionPreference = 'Stop'
 
     # --- Bootstrap ---
-
+    if (-not $ConfigPath) { $ConfigPath = "./config.json" }
+    if (Test-Path -LiteralPath $ConfigPath -PathType Container) { $ConfigPath = Join-Path $ConfigPath 'config.json' }
     $config = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
     $outputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
     $logFile = Join-Path $outputDir 'migration-log.txt'

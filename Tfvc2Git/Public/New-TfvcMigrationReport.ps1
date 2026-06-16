@@ -31,6 +31,8 @@ function New-TfvcMigrationReport {
     }
 
     try {
+        if (-not $ConfigPath) { $ConfigPath = "./config.json" }
+        if (Test-Path -LiteralPath $ConfigPath -PathType Container) { $ConfigPath = Join-Path $ConfigPath 'config.json' }
         $config     = Get-Content $ConfigPath -Raw | ConvertFrom-Json
         $outputDir  = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
         $verifyDir  = Join-Path $outputDir 'verification'

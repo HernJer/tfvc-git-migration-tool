@@ -23,6 +23,8 @@ function Test-TfvcMigration {
 
     try {
         # -- Bootstrap ----------------------------------------------------
+        if (-not $ConfigPath) { $ConfigPath = "./config.json" }
+        if (Test-Path -LiteralPath $ConfigPath -PathType Container) { $ConfigPath = Join-Path $ConfigPath 'config.json' }
         $config    = Get-Content -Path $ConfigPath -Raw | ConvertFrom-Json
         $outputDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($config.outputDir)
         $repoPath  = Join-Path $outputDir 'git-repo'

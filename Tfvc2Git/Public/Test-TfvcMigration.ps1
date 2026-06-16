@@ -248,6 +248,34 @@ function Test-TfvcMigration {
 
         Write-MigrationLog "  Exported changesets: $($exportedIds.Count)  Mapped commits: $totalMappedCommits  Unmapped: $($unmappedCs.Count)  Orphaned: $($orphanedCommits.Count)" -LogFile $logFile
 
+        # --- Pass 4: Remote push verification ---
+        $remoteResult = 'N/A'
+        $remoteUnpushed = [System.Collections.Generic.List[string]]::new()
+        $remoteUrlOut = Invoke-Git -C $repoPath config --get remote.origin.url 2>&1
+        $remoteUrl = if ($LASTEXITCODE -eq 0 -and $remoteUrlOut) { ($remoteUrlOut | Select-Object -First 1).Trim() } else { '' }
+        
+        if ($remoteUrl) {
+            Write-MigrationLog "Pass 4: remote push verification (origin)" -LogFile $logFile
+            foreach ($b in $existingBranches) {
+                $localHashOut = Invoke-Git -C $repoPath rev-parse $b 2>&1
+                $localHash = if ($LASTEXITCODE -eq 0 -and $localHashOut) { ($localHashOut | Select-Object -First 1).Trim() } else { '' }
+                
+                $remoteHashOut = Invoke-Git -C $repoPath rev-parse "origin/$b" 2>&1
+                $remoteHash = if ($LASTEXITCODE -eq 0 -and $remoteHashOut) { ($remoteHashOut | Select-Object -First 1).Trim() } else { '' }
+                
+                if (-not $localHash -or $localHash -ne $remoteHash) {
+                    $remoteUnpushed.Add($b)
+                }
+            }
+            if ($remoteUnpushed.Count -eq 0) {
+                Write-MigrationLog "  All $($existingBranches.Count) branch(es) are up-to-date on remote." -LogFile $logFile
+                $remoteResult = 'PASS'
+            } else {
+                Write-MigrationLog "  [x] $($remoteUnpushed.Count) branch(es) NOT up-to-date on remote: $($remoteUnpushed -join ', ')" -LogFile $logFile
+                $remoteResult = 'FAIL'
+            }
+        }
+
         # Leave the repo on the primary branch.
         Invoke-Git -C $repoPath checkout $primaryBranch 2>&1 | Out-Null
 
@@ -255,7 +283,7 @@ function Test-TfvcMigration {
         $invResult  = if ($allOnlyInTfvc.Count -eq 0 -and $allOnlyInGit.Count -eq 0) { 'PASS' } else { 'FAIL' }
         $hashResult = if ($mismatches.Count -eq 0) { 'PASS' } else { 'FAIL' }
         $csResult   = if ($unmappedCs.Count -eq 0 -and $orphanedCommits.Count -eq 0) { 'PASS' } else { 'FAIL' }
-        $overall    = if ($invResult -eq 'PASS' -and $hashResult -eq 'PASS' -and $csResult -eq 'PASS') { 'PASS' } else { 'FAIL' }
+        $overall    = if ($invResult -eq 'PASS' -and $hashResult -eq 'PASS' -and $csResult -eq 'PASS' -and ($remoteResult -eq 'PASS' -or $remoteResult -eq 'N/A')) { 'PASS' } else { 'FAIL' }
 
         $summary = [ordered]@{
             verificationDate = (Get-Date).ToString('o')
@@ -284,6 +312,11 @@ function Test-TfvcMigration {
                 unmappedChangesets      = @($unmappedCs)
                 orphanedCommits         = @($orphanedCommits)
             }
+            remotePushVerification = [ordered]@{
+                result             = $remoteResult
+                remoteUrl          = $remoteUrl
+                unpushedBranches   = @($remoteUnpushed)
+            }
         }
 
         $summary | ConvertTo-Json -Depth 10 | Set-Content (Join-Path $verifyDir 'summary.json') -Encoding UTF8
@@ -294,6 +327,7 @@ function Test-TfvcMigration {
         Write-MigrationLog "  Inventory:  $invResult"  -LogFile $logFile
         Write-MigrationLog "  Hashes:     $hashResult" -LogFile $logFile
         Write-MigrationLog "  Changesets: $csResult"   -LogFile $logFile
+        if ($remoteResult -ne 'N/A') { Write-MigrationLog "  RemotePush: $remoteResult" -LogFile $logFile }
         Write-MigrationLog "Results written to: $verifyDir" -LogFile $logFile
     }
     catch {

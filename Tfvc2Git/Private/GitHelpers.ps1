@@ -16,7 +16,13 @@ function Invoke-Git {
     $eap = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        & git @args 2>&1
+        & git @args 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                $_.ToString()
+            } else {
+                $_
+            }
+        }
     }
     finally {
         $ErrorActionPreference = $eap

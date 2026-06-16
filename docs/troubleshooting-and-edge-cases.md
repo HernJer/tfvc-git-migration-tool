@@ -49,11 +49,11 @@ The tool will read `export-checkpoint.json` or `replay-checkpoint.json` and pick
 
 ```json
 {
-  "apiVersion": "4.1",
+  "apiVersion": "6.0",
   ...
 }
 ```
-If `4.1` fails, try `3.0` or `5.1`.
+If `6.0` fails, you can try `5.1`, `4.1`, or `3.0` depending on the age of your TFS server.
 
 ## "Cannot bind argument to parameter 'Path' because it is an empty string"
 

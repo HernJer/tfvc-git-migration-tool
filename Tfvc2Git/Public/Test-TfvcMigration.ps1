@@ -189,17 +189,38 @@ function Test-TfvcMigration {
         $totalMappedCommits = 0
 
         foreach ($b in $existingBranches) {
-            $gitLogOutput = Invoke-Git -C $repoPath log $b --format="%H|||%an|||%ai|||%s|||%b" 2>&1
+            $gitLogOutput = Invoke-Git -C $repoPath log $b --format="COMMIT_START|||%H|||%an|||%ai|||%s|||%b" 2>&1
             if ($LASTEXITCODE -ne 0) { throw "git log failed on '$b': $gitLogOutput" }
+
+            $commits = @()
+            $currentCommit = $null
+
             foreach ($line in ($gitLogOutput -split "`n")) {
                 $line = $line.Trim()
                 if (-not $line) { continue }
-                $parts  = $line -split '\|\|\|', 5
-                $hash   = $parts[0].Trim()
-                $author = $parts[1].Trim()
-                $date   = $parts[2].Trim()
-                $subj   = if ($parts.Count -gt 3) { $parts[3].Trim() } else { '' }
-                $body   = if ($parts.Count -gt 4) { $parts[4].Trim() } else { '' }
+                
+                if ($line -match '^COMMIT_START\|\|\|') {
+                    if ($currentCommit) { $commits += $currentCommit }
+                    $parts  = $line -split '\|\|\|', 6
+                    $currentCommit = @{
+                        hash   = $parts[1].Trim()
+                        author = $parts[2].Trim()
+                        date   = $parts[3].Trim()
+                        subj   = if ($parts.Count -gt 4) { $parts[4].Trim() } else { '' }
+                        body   = if ($parts.Count -gt 5) { $parts[5].Trim() } else { '' }
+                    }
+                } elseif ($currentCommit) {
+                    $currentCommit.body += "`n" + $line
+                }
+            }
+            if ($currentCommit) { $commits += $currentCommit }
+
+            foreach ($c in $commits) {
+                $hash   = $c.hash
+                $author = $c.author
+                $date   = $c.date
+                $subj   = $c.subj
+                $body   = $c.body
 
                 # Commits tfvc2git generated itself (e.g. the .gitignore commit)
                 # are not changesets and must not count as orphaned.

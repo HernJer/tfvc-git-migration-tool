@@ -78,6 +78,9 @@ function Invoke-TfvcReplay {
         git init $repoPath
         Invoke-Git -C $repoPath config core.autocrlf false
         Invoke-Git -C $repoPath config core.safecrlf false
+        # Windows MAX_PATH (260) otherwise makes 'git add' fail on deep .NET paths
+        # (obj/, .vs/, generated files), which silently produced empty commits.
+        Invoke-Git -C $repoPath config core.longpaths true
 
         if ($config.gitRemoteUrl) {
             Invoke-Git -C $repoPath remote add origin $config.gitRemoteUrl
@@ -275,6 +278,15 @@ function Invoke-TfvcReplay {
         $addOut = Invoke-Git -C $repoPath add -A 2>&1
         if ($LASTEXITCODE -ne 0) {
             throw "git add failed for changeset $($cs.changesetId) (exit $LASTEXITCODE): $addOut"
+        }
+
+        # Diagnostic: a changeset that downloaded files but stages nothing means git
+        # silently skipped them (path length, etc.) - surface it instead of an empty commit.
+        if ($downloads.Count -gt 0) {
+            Invoke-Git -C $repoPath diff --cached --quiet | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-MigrationLog -Message "Changeset $($cs.changesetId): $($downloads.Count) file(s) downloaded but nothing staged (git skipped them - check path length)." -Level WARN -LogFile $logFile
+            }
         }
 
         $body = $(if ($cs.comment) { $cs.comment } else { '' })

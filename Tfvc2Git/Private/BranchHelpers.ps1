@@ -30,23 +30,74 @@ function Get-MappingBranch {
     return "$branch".Trim()
 }
 
+function Get-MappingParentBranch {
+    <#
+    .SYNOPSIS
+        Returns the parent Git branch for a source mapping (default empty).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Mapping
+    )
+
+    $parent = $null
+    if ($Mapping -is [hashtable]) {
+        if ($Mapping.ContainsKey('gitParentBranch')) { $parent = $Mapping['gitParentBranch'] }
+    }
+    elseif ($null -ne $Mapping -and $null -ne $Mapping.PSObject.Properties['gitParentBranch']) {
+        $parent = $Mapping.gitParentBranch
+    }
+
+    if ([string]::IsNullOrWhiteSpace("$parent")) { return '' }
+    return "$parent".Trim()
+}
+
 function Get-ConfigBranches {
     <#
     .SYNOPSIS
-        Returns the distinct list of target branches across all source mappings,
-        in first-seen order.
+        Returns the distinct list of target branches across all source mappings.
+        Topologically sorted so that parent branches appear before their children.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]$SourceMappings
     )
 
-    $seen = [System.Collections.Generic.List[string]]::new()
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $deps = @{}
+    
     foreach ($m in $SourceMappings) {
         $b = Get-MappingBranch -Mapping $m
-        if (-not ($seen -contains $b)) { [void]$seen.Add($b) }
+        $p = Get-MappingParentBranch -Mapping $m
+        if (-not $seen.Contains($b)) {
+            [void]$seen.Add($b)
+            $deps[$b] = $p
+        }
     }
-    return ,@($seen)
+
+    $sorted = [System.Collections.Generic.List[string]]::new()
+    $visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $visiting = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    function Visit([string]$branch) {
+        if ($visited.Contains($branch)) { return }
+        if ($visiting.Contains($branch)) { throw "Circular branch dependency detected for '$branch'." }
+        
+        [void]$visiting.Add($branch)
+        $parent = $deps[$branch]
+        if (-not [string]::IsNullOrEmpty($parent) -and $seen.Contains($parent)) {
+            Visit $parent
+        }
+        [void]$visiting.Remove($branch)
+        [void]$visited.Add($branch)
+        $sorted.Add($branch)
+    }
+
+    foreach ($b in $seen) {
+        Visit $b
+    }
+
+    return ,@($sorted)
 }
 
 function Get-PrimaryBranch {

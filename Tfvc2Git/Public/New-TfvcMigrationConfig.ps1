@@ -42,6 +42,7 @@ function New-TfvcMigrationConfig {
         [string]$Pat,
         [string]$TfvcPath,
         [string]$Branch = 'main',
+        [string]$ParentBranch,
         [string]$GitRemoteUrl,
         [string]$OutputDir
     )
@@ -114,7 +115,8 @@ function New-TfvcMigrationConfig {
         foreach ($m in $Config.sourceMappings) {
             $dest = if ($m.destinationPath) { $m.destinationPath } else { '(root)' }
             $br   = Get-MappingBranch -Mapping $m
-            Write-Host "  |    $($m.tfvcPath) -> [$br] $dest" -ForegroundColor DarkCyan
+            $parent = if ($m.gitParentBranch) { " (from $($m.gitParentBranch))" } else { "" }
+            Write-Host "  |    $($m.tfvcPath) -> [$br]$parent $dest" -ForegroundColor DarkCyan
         }
         Write-Host "  |  Git Remote    : $($Config.gitRemoteUrl)" -ForegroundColor DarkCyan
         Write-Host "  |  Output Dir    : $($Config.outputDir)" -ForegroundColor DarkCyan
@@ -174,6 +176,7 @@ location. Or choose where to save it:
         $cfgCollection  = if ($Collection) { $Collection } else { 'DefaultCollection' }
         $cfgOutputDir   = if ($OutputDir)  { $OutputDir }  else { './migration-output' }
         $cfgBranch      = if ($Branch)     { $Branch }     else { 'main' }
+        $cfgParent      = if ($ParentBranch) { $ParentBranch } else { '' }
 
         $config = @{
             adoServerUrl      = $ServerUrl
@@ -182,7 +185,7 @@ location. Or choose where to save it:
             apiVersion        = '7.0'
             pat               = $Pat
             sourceMappings    = @(
-                @{ tfvcPath = $TfvcPath; destinationPath = ''; branch = $cfgBranch }
+                @{ tfvcPath = $TfvcPath; destinationPath = ''; branch = $cfgBranch; gitParentBranch = $cfgParent }
             )
             gitRemoteUrl      = $GitRemoteUrl
             outputDir         = $cfgOutputDir
@@ -219,9 +222,14 @@ location. Or choose where to save it:
         do {
             $tfvc = Read-Prompt -Label 'TFVC path (e.g. $/Project/Folder)'
             $branch = Read-Prompt -Label 'Target Git branch' -Default 'main'
+            
+            $parent = Read-Host "  Source (parent) branch for '$branch' (empty = independent/orphan branch) []"
+            if ([string]::IsNullOrWhiteSpace($parent)) { $parent = '' }
+
             $dest = Read-Host '  Destination subfolder within the branch (empty = branch root) []'
             if ([string]::IsNullOrWhiteSpace($dest)) { $dest = '' }
-            $mappings.Add(@{ tfvcPath = $tfvc; destinationPath = $dest; branch = $branch })
+            
+            $mappings.Add(@{ tfvcPath = $tfvc; destinationPath = $dest; branch = $branch; gitParentBranch = $parent })
             $more = Read-Host '  Add another mapping? (y/n) [n]'
         } while ($more -eq 'y' -or $more -eq 'Y')
 

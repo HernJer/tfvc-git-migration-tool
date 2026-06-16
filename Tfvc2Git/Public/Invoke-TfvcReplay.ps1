@@ -190,15 +190,25 @@ function Invoke-TfvcReplay {
 
     # --- Helper: start a fresh, empty orphan branch ---
 
-    function Start-OrphanBranch {
-        param([string]$Branch)
+    function Start-GitBranch {
+        param(
+            [string]$Branch,
+            [string]$ParentBranch
+        )
         # If any commit exists, detach so we can (re)create the branch from nothing.
         Invoke-Git -C $repoPath rev-parse --verify -q HEAD > $null 2>&1
         if ($LASTEXITCODE -eq 0) {
             Invoke-Git -C $repoPath checkout --detach 2>&1 | Out-Null
             Invoke-Git -C $repoPath branch -D $Branch 2>&1 | Out-Null
         }
-        Invoke-Git -C $repoPath checkout --orphan $Branch 2>&1 | Out-Null
+        
+        if ($ParentBranch) {
+            Write-MigrationLog -Message "Basing branch '$Branch' on parent '$ParentBranch'" -LogFile $logFile
+            Invoke-Git -C $repoPath checkout -b $Branch $ParentBranch 2>&1 | Out-Null
+        } else {
+            Invoke-Git -C $repoPath checkout --orphan $Branch 2>&1 | Out-Null
+        }
+        
         Invoke-Git -C $repoPath read-tree --empty 2>&1 | Out-Null
         # Physically clear the working tree (except .git) so the branch starts empty.
         Get-ChildItem -LiteralPath $repoPath -Force |
@@ -428,7 +438,14 @@ function Invoke-TfvcReplay {
         }
         else {
             Write-MigrationLog -Message "Building branch '$b' ($($branchItems.Count) changeset(s))" -LogFile $logFile
-            Start-OrphanBranch -Branch $b
+            $parentBranch = ''
+            foreach ($m in $config.sourceMappings) {
+                if ((Get-MappingBranch -Mapping $m) -eq $b) {
+                    $parentBranch = Get-MappingParentBranch -Mapping $m
+                    break
+                }
+            }
+            Start-GitBranch -Branch $b -ParentBranch $parentBranch
         }
         Reset-LfsTracking
 

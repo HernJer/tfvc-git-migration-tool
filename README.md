@@ -113,6 +113,8 @@ The tool reads a `config.json` file. You can generate this using `New-TfvcMigrat
 
 Each mapping sends a TFVC path to a **Git branch** (`branch`, default `main`) and an optional sub-folder within that branch (`destinationPath`, empty = branch root). All mappings land in **one repository**.
 
+You can also specify a **parent branch** (`gitParentBranch`). If specified, the tool will topological sort branches and create the child branch directly from its parent using `git checkout -b <branch> <parent>` instead of an orphan branch. This mathematically guarantees that parent/child histories are linked (eliminating GitHub "unrelated histories" errors when opening Pull Requests).
+
 **Example 1: Single folder → `main`**
 Migrate `$/MyProject/Application1` to the root of the `main` branch.
 ```json
@@ -125,8 +127,8 @@ Migrate `$/MyProject/Application1` to the root of the `main` branch.
     ]
 ```
 
-**Example 2: Different folders → different branches**
-Send `/Prod` to `main` and `/DEV` to `dev` in the same repo.
+**Example 2: Dependent branch → `develop` branches off `main`**
+Send `/Prod` to `main`, and `/DEV` to `develop`. Branch `develop` from `main` so PRs work perfectly.
 ```json
     "sourceMappings": [
         {
@@ -137,7 +139,8 @@ Send `/Prod` to `main` and `/DEV` to `dev` in the same repo.
         {
             "tfvcPath": "$/MyProject/Application1/DEV",
             "destinationPath": "",
-            "branch": "dev"
+            "branch": "develop",
+            "gitParentBranch": "main"
         }
     ]
 ```

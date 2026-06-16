@@ -44,16 +44,41 @@ function New-TfvcMigrationReport {
         $now        = (Get-Date).ToString('o')
         $sourceServer = "$($config.adoServerUrl)/$($config.collection)/$($config.project)"
 
-        # -- Compute migration duration from changeset dates --------------
+        # -- Compute migration timeline from changeset dates --------------
         $dates = @($csMappCsv | Where-Object { $_.Date } | ForEach-Object {
             try { [DateTime]::Parse($_.Date) } catch { $null }
         } | Where-Object { $_ })
 
-        $migrationDuration = 'N/A'
+        $migrationTimeline = 'N/A'
         if ($dates.Count -ge 2) {
             $sorted = $dates | Sort-Object
             $span   = $sorted[-1] - $sorted[0]
-            $migrationDuration = "$($sorted[0].ToString('yyyy-MM-dd')) to $($sorted[-1].ToString('yyyy-MM-dd')) ($([int]$span.TotalDays) days)"
+            $migrationTimeline = "$($sorted[0].ToString('yyyy-MM-dd')) to $($sorted[-1].ToString('yyyy-MM-dd')) ($([int]$span.TotalDays) days)"
+        }
+
+        # -- Compute execution duration from log file --------------
+        $logPath = Join-Path $outputDir 'migration-log.txt'
+        $executionDuration = 'N/A'
+        if (Test-Path $logPath) {
+            $logLines = Get-Content $logPath
+            if ($logLines.Count -ge 2) {
+                $firstLine = $logLines[0]
+                $lastLine = $logLines[-1]
+                $start = $null
+                $end = $null
+                if ($firstLine -match '^\[(.*?)\]') { try { $start = [DateTime]::Parse($Matches[1]) } catch {} }
+                if ($lastLine -match '^\[(.*?)\]') { try { $end = [DateTime]::Parse($Matches[1]) } catch {} }
+                if ($start -and $end) {
+                    $span = $end - $start
+                    
+                    $hours = [math]::Floor($span.TotalHours)
+                    $mins  = $span.Minutes.ToString('D2')
+                    $secs  = $span.Seconds.ToString('D2')
+                    $formattedTime = "$($hours):$($mins):$($secs)"
+                    
+                    $executionDuration = "$($start.ToString('HH:mm:ss')) to $($end.ToString('HH:mm:ss')) ($formattedTime)"
+                }
+            }
         }
 
         # -- Build table rows --------------------------------------------─
@@ -375,7 +400,8 @@ function New-TfvcMigrationReport {
                 <tbody>
                     <tr><td><strong>Source Server</strong></td><td class="mono">$(ConvertTo-HtmlSafe $sourceServer)</td></tr>
                     <tr><td><strong>Target Repository</strong></td><td class="mono">$(ConvertTo-HtmlSafe $config.gitRemoteUrl)</td></tr>
-                    <tr><td><strong>Migration Duration</strong></td><td>$(ConvertTo-HtmlSafe $migrationDuration)</td></tr>
+                    <tr><td><strong>Migration Timeline</strong></td><td>$(ConvertTo-HtmlSafe $migrationTimeline)</td></tr>
+                    <tr><td><strong>Execution Duration</strong></td><td>$(ConvertTo-HtmlSafe $executionDuration)</td></tr>
                     <tr><td><strong>Inventory Check</strong></td><td>$invBadge</td></tr>
                     <tr><td><strong>File Integrity</strong></td><td>$hashBadge</td></tr>
                     <tr><td><strong>Changeset Coverage</strong></td><td>$csBadge</td></tr>

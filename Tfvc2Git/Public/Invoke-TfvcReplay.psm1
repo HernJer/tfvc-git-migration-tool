@@ -104,6 +104,8 @@ function Invoke-TfvcReplay {
         Write-MigrationLog -Message "Git LFS not available - large files will be committed directly" -Level WARN -LogFile $logFile
     }
 
+    $script:redactedSecrets = [System.Collections.Generic.List[object]]::new()
+
     # --- LFS helpers ---
 
     $lfsThreshold = $(if ($config.lfsThresholdBytes) { $config.lfsThresholdBytes } else { 0 })
@@ -273,6 +275,23 @@ function Invoke-TfvcReplay {
         # Pass 2: download this changeset's files concurrently.
         if ($downloads.Count -gt 0) {
             Invoke-ParallelDownload -Connection $conn -Items $downloads.ToArray() -Concurrency $downloadConcurrency
+        }
+
+        # Pass 2.5: Secret Scanning
+        if ($config.secretScanningEnabled) {
+            foreach ($d in $downloads) {
+                if (Test-Path $d.OutputPath) {
+                    $wasCleaned = Invoke-SecretScanAndClean -FilePath $d.OutputPath -Patterns $config.secretPatterns -ReplacementToken $config.secretReplacementToken
+                    if ($wasCleaned) {
+                        Write-MigrationLog -Message "Secret redacted in $($d.ServerPath) at Changeset $($cs.changesetId)" -Level WARN -LogFile $logFile
+                        $script:redactedSecrets.Add(@{
+                            ChangesetId = $cs.changesetId
+                            ServerPath  = $d.ServerPath
+                            Branch      = $b
+                        })
+                    }
+                }
+            }
         }
 
         # Pass 3: LFS tracking for any downloaded file that needs it.
@@ -494,4 +513,10 @@ function Invoke-TfvcReplay {
     }
 
     Write-MigrationLog -Message "=== Git Replay finished ===" -LogFile $logFile
+
+    if ($script:redactedSecrets.Count -gt 0) {
+        $redactedSecretsFile = Join-Path $outputDir 'redacted-secrets.json'
+        $script:redactedSecrets | ConvertTo-Json -Depth 5 | Set-Content $redactedSecretsFile -Encoding UTF8
+        Write-MigrationLog -Message "Wrote redacted secrets report to $redactedSecretsFile" -LogFile $logFile
+    }
 }

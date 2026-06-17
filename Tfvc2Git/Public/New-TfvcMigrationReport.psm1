@@ -128,6 +128,23 @@ function New-TfvcMigrationReport {
             $csTableRows += "<tr$cls><td>$csId</td><td>$branch</td><td class=`"mono`" title=`"$(ConvertTo-HtmlSafe $row.GitCommitHash)`">$hashShort</td><td>$author</td><td>$date</td><td>$comment</td></tr>`n"
         }
 
+        # Redacted secrets
+        $redactedSecretsFile = Join-Path $outputDir 'redacted-secrets.json'
+        $redactedTableRows = ''
+        $redactedCount = 0
+        if (Test-Path $redactedSecretsFile) {
+            $redactedData = Get-Content $redactedSecretsFile -Raw | ConvertFrom-Json
+            if ($redactedData) {
+                foreach ($r in @($redactedData)) {
+                    $redactedCount++
+                    $b = ConvertTo-HtmlSafe $r.Branch
+                    $cs = ConvertTo-HtmlSafe $r.ChangesetId
+                    $sp = ConvertTo-HtmlSafe $r.ServerPath
+                    $redactedTableRows += "<tr><td>$cs</td><td>$b</td><td class=`"mono`">$sp</td></tr>`n"
+                }
+            }
+        }
+
         # Configuration (sanitized)
         $sanitizedConfig = $config.PSObject.Copy()
         $sanitizedConfig.pat = '***'
@@ -441,6 +458,22 @@ function New-TfvcMigrationReport {
             </div>
         </section>
 
+        $redactedSection = ""
+        if ($redactedCount -gt 0) {
+            $redactedSection = @"
+        <section>
+            <h2>3.5. Redacted Secrets (Cleaned)</h2>
+            <p><strong>$redactedCount</strong> instances of secrets were redacted (replaced with placeholder) during migration.</p>
+            <div class="table-scroll">
+                <table>
+                    <thead><tr><th>Changeset</th><th>Branch</th><th>File Path (TFVC)</th></tr></thead>
+                    <tbody>$redactedTableRows</tbody>
+                </table>
+            </div>
+        </section>
+"@
+        }
+
         <!-- Section 4: Changeset Coverage -->
         <section>
             <h2>4. Changeset Coverage $csBadge</h2>
@@ -482,7 +515,8 @@ function New-TfvcMigrationReport {
             </ul>
         </section>
 
-        <!-- Section 7: Configuration -->
+        $redactedSection
+        <!-- Section 5: Configuration & Audit Meta -->
         <section>
             <h2>7. Configuration</h2>
             <h3>Source Mappings</h3>

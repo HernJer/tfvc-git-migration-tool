@@ -193,6 +193,13 @@ location. Or choose where to save it:
             lfsPatterns       = @('*.dll', '*.exe', '*.zip', '*.nupkg')
             downloadConcurrency = 8
             addGitignore        = $true
+            secretScanningEnabled = $false
+            secretReplacementToken = "***REMOVED***"
+            secretPatterns      = @(
+                "(?i)password\s*=\s*['""]([^'""]+)['""]",
+                "(?i)api[_-]?key\s*[:=]\s*['""]([^'""]+)['""]",
+                "(?i)(?:User ID|Uid|Server|Data Source)\s*=[^;]+;.*?(?:Password|Pwd)\s*=([^;]+)"
+            )
         }
     }
     else {
@@ -274,6 +281,13 @@ location. Or choose where to save it:
             lfsPatterns       = @($cfgLfsPatterns)
             downloadConcurrency = 8
             addGitignore        = $true
+            secretScanningEnabled = $false
+            secretReplacementToken = "***REMOVED***"
+            secretPatterns      = @(
+                "(?i)password\s*=\s*['""]([^'""]+)['""]",
+                "(?i)api[_-]?key\s*[:=]\s*['""]([^'""]+)['""]",
+                "(?i)(?:User ID|Uid|Server|Data Source)\s*=[^;]+;.*?(?:Password|Pwd)\s*=([^;]+)"
+            )
         }
     }
 

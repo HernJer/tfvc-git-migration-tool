@@ -249,20 +249,24 @@ function Export-TfvcChangeset {
             [PSCustomObject]@{ id = $_.id; title = $_.title }
         })
 
-        $authorName = "$($cs.author)"
+        $authorName = "Unknown"
         if ($null -ne $cs.psobject.Properties['author']) {
+            $authorName = "$($cs.author)"
             if ($null -ne $cs.author.psobject.Properties['displayName']) {
                 $authorName = $cs.author.displayName
             } elseif ($null -ne $cs.author.psobject.Properties['uniqueName']) {
                 $authorName = $cs.author.uniqueName
             }
         }
+        
+        $comment = if ($null -ne $cs.psobject.Properties['comment']) { $cs.comment } else { '' }
+        $createdDate = if ($null -ne $cs.psobject.Properties['createdDate']) { $cs.createdDate } else { '' }
 
         $exportedChangesets.Add([PSCustomObject]@{
             changesetId = $cs.changesetId
             author      = $authorName
-            createdDate = $cs.createdDate
-            comment     = $cs.comment
+            createdDate = $createdDate
+            comment     = $comment
             workItems   = $wiList
             changes     = @($scopedChanges)
         })

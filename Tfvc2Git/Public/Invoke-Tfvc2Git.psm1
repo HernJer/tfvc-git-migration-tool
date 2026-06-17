@@ -59,12 +59,12 @@ Options are forwarded to the underlying command, for example:
 
     try {
         switch -Regex ($sub) {
-            '^(--)?(config|create-config|init)$' { New-TfvcMigrationConfig @rest; break }
-            '^(--)?(run|migrate)$'               { Invoke-TfvcMigration   @rest; break }
-            '^(--)?export$'                      { Export-TfvcChangeset   @rest; break }
-            '^(--)?replay$'                      { Invoke-TfvcReplay      @rest; break }
-            '^(--)?(verify|test)$'               { Test-TfvcMigration     @rest; break }
-            '^(--)?report$'                      { New-TfvcMigrationReport @rest; break }
+            '^(--)?(config|create-config|init)$' { & { New-TfvcMigrationConfig @args } @rest; break }
+            '^(--)?(run|migrate)$'               { & { Invoke-TfvcMigration   @args } @rest; break }
+            '^(--)?export$'                      { & { Export-TfvcChangeset   @args } @rest; break }
+            '^(--)?replay$'                      { & { Invoke-TfvcReplay      @args } @rest; break }
+            '^(--)?(verify|test)$'               { & { Test-TfvcMigration     @args } @rest; break }
+            '^(--)?report$'                      { & { New-TfvcMigrationReport @args } @rest; break }
             '^(--help|-h|help|/\?)$'             { Show-Tfvc2GitUsage; break }
             '^(--version|version)$' {
                 $v = $MyInvocation.MyCommand.Module.Version
@@ -75,7 +75,7 @@ Options are forwarded to the underlying command, for example:
                 if ($sub -and $sub -notmatch '^-') {
                     throw "Unknown command '$sub'. Run 'tfvc2git help' for usage."
                 }
-                Invoke-TfvcMigration @argv
+                & { Invoke-TfvcMigration @args } @argv
             }
         }
     }

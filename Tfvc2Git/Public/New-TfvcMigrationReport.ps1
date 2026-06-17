@@ -190,6 +190,22 @@ function New-TfvcMigrationReport {
 "@
         }
 
+        $redactedSection = ""
+        if ($redactedCount -gt 0) {
+            $redactedSection = @"
+        <section>
+            <h2>3.5. Redacted Secrets (Cleaned)</h2>
+            <p><strong>$redactedCount</strong> instances of secrets were redacted (replaced with placeholder) during migration.</p>
+            <div class="table-scroll">
+                <table>
+                    <thead><tr><th>Changeset</th><th>Branch</th><th>File Path (TFVC)</th></tr></thead>
+                    <tbody>$redactedTableRows</tbody>
+                </table>
+            </div>
+        </section>
+"@
+        }
+
         # -- HTML Template ------------------------------------------------
         $html = @"
 <!DOCTYPE html>
@@ -458,21 +474,6 @@ function New-TfvcMigrationReport {
             </div>
         </section>
 
-        $redactedSection = ""
-        if ($redactedCount -gt 0) {
-            $redactedSection = @"
-        <section>
-            <h2>3.5. Redacted Secrets (Cleaned)</h2>
-            <p><strong>$redactedCount</strong> instances of secrets were redacted (replaced with placeholder) during migration.</p>
-            <div class="table-scroll">
-                <table>
-                    <thead><tr><th>Changeset</th><th>Branch</th><th>File Path (TFVC)</th></tr></thead>
-                    <tbody>$redactedTableRows</tbody>
-                </table>
-            </div>
-        </section>
-"@
-        }
 
         <!-- Section 4: Changeset Coverage -->
         <section>

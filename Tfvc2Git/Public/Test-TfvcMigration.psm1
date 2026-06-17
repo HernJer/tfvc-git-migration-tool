@@ -63,6 +63,17 @@ function Test-TfvcMigration {
         $matched    = 0
         $compared   = 0
 
+        $redactedFilesSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $redactedSecretsFile = Join-Path $outputDir 'redacted-secrets.json'
+        if (Test-Path $redactedSecretsFile) {
+            $redactedData = Get-Content $redactedSecretsFile -Raw | ConvertFrom-Json
+            if ($redactedData) {
+                foreach ($r in @($redactedData)) {
+                    [void]$redactedFilesSet.Add("$($r.Branch):$($r.ServerPath)")
+                }
+            }
+        }
+
         foreach ($b in $branches) {
             Invoke-Git -C $repoPath rev-parse --verify -q "refs/heads/$b" > $null 2>&1
             $branchExists = ($LASTEXITCODE -eq 0)
@@ -134,13 +145,20 @@ function Test-TfvcMigration {
                 foreach ($hi in $batch) {
                     $compared++
                     $destPath = $hi.DestPath
+                    $serverPath = $hi.ServerPath
                     try {
                         if (-not (Test-Path $hi.TempFile)) { throw "TFVC content was not downloaded" }
                         $tfvcHash = (Get-FileHash -Path $hi.TempFile -Algorithm SHA256).Hash
                         $gitHash  = (Get-FileHash -Path (Join-Path $repoPath $destPath) -Algorithm SHA256).Hash
                         $isMatch  = $tfvcHash -eq $gitHash
-                        if ($isMatch) { $matched++ }
-                        else { $mismatches.Add(@{ path = "${b}:$destPath"; tfvcHash = $tfvcHash; gitHash = $gitHash }) }
+                        if ($isMatch) { 
+                            $matched++ 
+                        } elseif ($redactedFilesSet.Contains("${b}:${serverPath}")) {
+                            $isMatch = 'Redacted'
+                            $matched++
+                        } else { 
+                            $mismatches.Add(@{ path = "${b}:$destPath"; tfvcHash = $tfvcHash; gitHash = $gitHash }) 
+                        }
                         $hashRows.Add("$b,$destPath,$tfvcHash,$gitHash,$isMatch")
                     }
                     catch {

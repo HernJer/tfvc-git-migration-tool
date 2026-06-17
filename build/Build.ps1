@@ -98,6 +98,14 @@ if ($Package) {
 
     Write-Step "Staging module to $stageDir"
     Copy-Item -Path (Join-Path $moduleDir '*') -Destination $stageDir -Recurse -Force
+    
+    # Include docs in the package to fix PSGallery missing README warning
+    if (Test-Path (Join-Path $repoRoot 'README.md')) {
+        Copy-Item -Path (Join-Path $repoRoot 'README.md') -Destination $stageDir -Force
+    }
+    if (Test-Path (Join-Path $repoRoot 'LICENSE')) {
+        Copy-Item -Path (Join-Path $repoRoot 'LICENSE') -Destination $stageDir -Force
+    }
 
     $fullVersion = if ($Version -and $Prerelease) { "$Version-$Prerelease" } elseif ($Version) { $Version } else { $null }
     $zipName = if ($fullVersion) { "$ModuleName-$fullVersion.zip" } else { "$ModuleName.zip" }

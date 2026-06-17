@@ -54,7 +54,11 @@ function Invoke-ParallelDownload {
             }
             catch {
                 $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-                if ($code -in 400, 401, 403, 404 -or $i -eq $MaxRetries) {
+                if ($code -eq 404) {
+                    New-Item -Path $OutputPath -ItemType File -Force | Out-Null
+                    return "WARNING_404"
+                }
+                if ($code -in 400, 401, 403 -or $i -eq $MaxRetries) {
                     throw "Download failed for ${ServerPath}: $($_.Exception.Message)"
                 }
                 Start-Sleep -Seconds ([Math]::Pow(2, $i))
@@ -91,7 +95,12 @@ function Invoke-ParallelDownload {
             }
 
             foreach ($j in $jobs) {
-                try { $j.PS.EndInvoke($j.Handle) | Out-Null }
+                try {
+                    $res = $j.PS.EndInvoke($j.Handle)
+                    if ($res -contains "WARNING_404") {
+                        Write-Warning "File destroyed in TFVC (404 Not Found): $($j.ServerPath). Created empty placeholder."
+                    }
+                }
                 catch { $errors.Add("$($j.ServerPath): $($_.Exception.Message)") }
                 finally { $j.PS.Dispose() }
             }

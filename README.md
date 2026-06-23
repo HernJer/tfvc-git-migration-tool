@@ -42,7 +42,7 @@ choco install tfvc2git
 
 ## Commands
 
-The module exports one cmdlet per pipeline stage, plus an orchestrator. You will normally only use `Invoke-TfvcMigration`.
+The module exports one cmdlet per pipeline stage, plus an orchestrator. You will normally only use the `tfvc2git` command.
 
 | Cmdlet | Purpose |
 |--------|---------|
@@ -103,7 +103,7 @@ tfvc2git -Push
 Start-Process .\migration-output\audit-report.html
 ```
 
-The `tfvc2git` command auto-loads the module on first use (no `Import-Module` needed). Prefer the named cmdlets? `New-TfvcMigrationConfig` and `Invoke-TfvcMigration -DryRun` do the same thing.
+The `tfvc2git` command auto-loads the module on first use (no `Import-Module` needed). Prefer the named cmdlets? `tfvc2git config` and `tfvc2git -DryRun` are the standard ways to interact with the tool.
 
 ---
 
@@ -177,24 +177,24 @@ Runs an interactive prompt to build `config.json`. It will automatically test th
 * **Pro-tip:** For Azure DevOps Server 2020, type `6.0` when prompted for the API Version. For 2022, press Enter to accept `7.0`.
 * For unattended setup, use `New-TfvcMigrationConfig -NonInteractive -ServerUrl ... -Project ... -Pat ... -TfvcPath ... -GitRemoteUrl ...`.
 
-### 2. Invoke-TfvcMigration
+### 2. Run the Migration
 The main orchestrator. You should generally just use this command to run the migration.
 
 ```powershell
 # Full migration
-Invoke-TfvcMigration
+tfvc2git
 
 # Dry run — export only, see what would be migrated without touching Git
-Invoke-TfvcMigration -DryRun
+tfvc2git -DryRun
 
 # Push to GitHub after a successful replay
-Invoke-TfvcMigration -Push
+tfvc2git -Push
 
 # Skip all other steps and only attempt to push the local repository to GitHub
-Invoke-TfvcMigration -PushOnly
+tfvc2git -PushOnly
 
 # Resume an interrupted migration from the last checkpoint
-Invoke-TfvcMigration -Resume
+tfvc2git -Resume
 ```
 
 ---
@@ -209,7 +209,7 @@ Both the Export and Replay steps are built to survive network drops or manual in
 To resume an interrupted run safely, simply pass the `-Resume` flag:
 
 ```powershell
-Invoke-TfvcMigration -Resume
+tfvc2git -Resume
 ```
 
 ---
@@ -248,7 +248,7 @@ If you get 404s or Bad Requests, ensure you are using the correct API version fo
 ### Verbose REST tracing
 Every API call is emitted via `Write-Verbose`. To see the exact URLs being requested, add `-Verbose`:
 ```powershell
-Invoke-TfvcMigration -DryRun -Verbose
+tfvc2git -DryRun -Verbose
 ```
 
 ### PowerShell 5.1 Strict Mode errors

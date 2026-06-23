@@ -37,12 +37,12 @@ Large migrations can take hours or even days. If your VPN disconnects, your mach
 
 For example, if the export fails:
 ```powershell
-tfvc2git export --Resume
+tfvc2git export -Resume
 ```
 
 If the replay fails:
 ```powershell
-tfvc2git replay --Resume
+tfvc2git replay -Resume
 ```
 
 The tool will read `export-checkpoint.json` or `replay-checkpoint.json` and pick up exactly where it left off, skipping changesets that were already processed.
@@ -74,5 +74,5 @@ If `6.0` fails, you can try `5.1`, `4.1`, or `3.0` depending on the age of your 
 **Resolution**: Initialize the variable in your terminal before running the tool:
 ```powershell
 $global:LASTEXITCODE = 0
-tfvc2git run
+tfvc2git
 ```

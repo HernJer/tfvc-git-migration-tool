@@ -191,7 +191,7 @@ function Invoke-TfvcMigration {
     if (-not $DryRun -and -not $SkipReplay -and -not $failed) {
         $replayArgs = @()
         if ($Resume) { $replayArgs += '-Resume' }
-        if ($Push)   { $replayArgs += '-Push' }
+        if ($Push -and $SkipVerify) { $replayArgs += '-Push' }
 
         $ok = Invoke-Step -Number 2 -Name 'Replay' -Command 'Invoke-TfvcReplay' -ExtraArgs $replayArgs
         if (-not $ok) { $failed = $true }

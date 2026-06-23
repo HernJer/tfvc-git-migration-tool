@@ -23,6 +23,12 @@ hint: have locally.
    ```
 3. Once the push succeeds, you can run `tfvc2git report` to re-generate the audit report. Note: Because `tfvc2git -Push` failed originally, the report's `RemotePush` status may still say `FAIL`. The migration itself is mathematically sound and completed successfully.
 
+## Verification Cleanups & Auto-Resolutions
+
+If you check the audit report, you might notice a section titled "Cleanups & Auto-Resolutions". This tracks expected discrepancies that the tool automatically resolved during verification:
+1. **Orphaned Files (Destroyed in TFVC)**: If TFVC administrators used the "Destroy" command to permanently delete files without leaving a deletion changeset, the tool might inadvertently migrate those files into Git. The verification step detects these orphaned files and automatically issues a `git rm` and commits the cleanup.
+2. **Redacted Secrets**: If `secretScanningEnabled` is turned on, the migration tool scrubbed sensitive passwords or tokens from the Git history. During verification, the tool applies the same scrubbing logic to the raw TFVC files as they are downloaded before hashing them. This ensures the hashes perfectly match without falsely failing the integrity check. Both operations are securely tracked in the final HTML report.
+
 ## Network Interruptions During Export or Replay
 
 Large migrations can take hours or even days. If your VPN disconnects, your machine goes to sleep, or the TFS server restarts, the pipeline will fail with an exception.

@@ -190,6 +190,9 @@ Invoke-TfvcMigration -DryRun
 # Push to GitHub after a successful replay
 Invoke-TfvcMigration -Push
 
+# Skip all other steps and only attempt to push the local repository to GitHub
+Invoke-TfvcMigration -PushOnly
+
 # Resume an interrupted migration from the last checkpoint
 Invoke-TfvcMigration -Resume
 ```

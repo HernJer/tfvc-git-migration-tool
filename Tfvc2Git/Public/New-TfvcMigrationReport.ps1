@@ -206,6 +206,33 @@ function New-TfvcMigrationReport {
 "@
         }
 
+        # Auto-Resolutions Section
+        $autoResolutionsSection = ""
+        $orphansCount = if ($summary.inventoryCheck.cleanedOrphans) { $summary.inventoryCheck.cleanedOrphans.Count } else { 0 }
+        $secretsCount = if ($summary.hashCheck.cleanedSecrets) { $summary.hashCheck.cleanedSecrets.Count } else { 0 }
+
+        if ($orphansCount -gt 0 -or $secretsCount -gt 0) {
+            $orphansList = ""
+            if ($orphansCount -gt 0) {
+                foreach ($f in $summary.inventoryCheck.cleanedOrphans) { $orphansList += "<li>$(ConvertTo-HtmlSafe $f)</li>`n" }
+                $orphansList = "<h3>Orphaned Files Removed ($orphansCount)</h3><p>These files existed in Git but not in the TFVC tip, likely due to a TFVC 'Destroy' operation. They were automatically removed from Git during verification.</p><ul class=`"mono gaps-list`">$orphansList</ul>"
+            }
+
+            $secretsList = ""
+            if ($secretsCount -gt 0) {
+                foreach ($f in $summary.hashCheck.cleanedSecrets) { $secretsList += "<li>$(ConvertTo-HtmlSafe $f)</li>`n" }
+                $secretsList = "<h3>Secrets Redacted ($secretsCount)</h3><p>These files had secrets (e.g. passwords, tokens) scrubbed and replaced with placeholders during verification to perfectly match the redacted Git history.</p><ul class=`"mono gaps-list`">$secretsList</ul>"
+            }
+
+            $autoResolutionsSection = @"
+        <section>
+            <h2>Cleanups &amp; Auto-Resolutions</h2>
+            $orphansList
+            $secretsList
+        </section>
+"@
+        }
+
         # -- HTML Template ------------------------------------------------
         $html = @"
 <!DOCTYPE html>
@@ -502,6 +529,8 @@ function New-TfvcMigrationReport {
                 "<p>No remote `origin` was configured. Verification skipped.</p>"
             })
         </section>
+
+        $autoResolutionsSection
 
         <!-- Section 6: Known Gaps -->
         <section>

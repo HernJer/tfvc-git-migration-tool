@@ -53,6 +53,7 @@ function Test-TfvcMigration {
         # -- Pass 1 + 2 - per-branch inventory and hash -------------------
         $allOnlyInTfvc = [System.Collections.Generic.List[string]]::new()
         $allOnlyInGit  = [System.Collections.Generic.List[string]]::new()
+        $cleanedOrphans = [System.Collections.Generic.List[string]]::new()
         $perBranch     = [System.Collections.Generic.List[object]]::new()
         $existingBranches = [System.Collections.Generic.List[string]]::new()
         $totalTfvc = 0; $totalGit = 0; $totalInBoth = 0
@@ -60,6 +61,7 @@ function Test-TfvcMigration {
         $hashRows   = [System.Collections.Generic.List[string]]::new()
         $hashRows.Add("Branch,Path,TfvcSHA256,GitSHA256,Match")
         $mismatches = [System.Collections.Generic.List[object]]::new()
+        $cleanedSecrets = [System.Collections.Generic.List[string]]::new()
         $matched    = 0
         $compared   = 0
 
@@ -114,6 +116,19 @@ function Test-TfvcMigration {
 
             $onlyInTfvc = @($tfvcFiles | Where-Object { -not $gitFiles.Contains($_) })
             $onlyInGit  = @($gitFiles  | Where-Object { -not $tfvcFiles.Contains($_) -and $_ -ne '.gitattributes' -and $_ -ne '.gitignore' })
+
+            if ($onlyInGit.Count -gt 0) {
+                Write-MigrationLog "  [$b] Cleaning up $($onlyInGit.Count) orphaned files..." -LogFile $logFile
+                foreach ($f in $onlyInGit) {
+                    Invoke-Git -C $repoPath rm --cached $f 2>&1 | Out-Null
+                    $fullPath = Join-Path $repoPath $f
+                    if (Test-Path $fullPath) { Remove-Item $fullPath -Force -ErrorAction SilentlyContinue }
+                    $cleanedOrphans.Add("${b}:$f")
+                }
+                Invoke-Git -C $repoPath commit -m "Tfvc2Git-Generated: Remove orphaned files destroyed in TFVC`n`nThese files were present in historical changesets but no longer exist in the TFVC tip, likely due to a Destroy operation." 2>&1 | Out-Null
+                $onlyInGit = @()
+            }
+
             $inBoth     = @($tfvcFiles | Where-Object { $gitFiles.Contains($_) })
 
             foreach ($f in $onlyInTfvc) { [void]$allOnlyInTfvc.Add("${b}:$f") }
@@ -148,6 +163,14 @@ function Test-TfvcMigration {
                     $serverPath = $hi.ServerPath
                     try {
                         if (-not (Test-Path $hi.TempFile)) { throw "TFVC content was not downloaded" }
+                        
+                        if ($config.secretScanningEnabled) {
+                            $wasCleaned = Invoke-SecretScanAndClean -FilePath $hi.TempFile -Patterns $config.secretPatterns -ReplacementToken $config.secretReplacementToken
+                            if ($wasCleaned) {
+                                [void]$cleanedSecrets.Add("${b}:$destPath")
+                            }
+                        }
+
                         $tfvcHash = (Get-FileHash -Path $hi.TempFile -Algorithm SHA256).Hash
                         $gitHash  = (Get-FileHash -Path (Join-Path $repoPath $destPath) -Algorithm SHA256).Hash
                         $isMatch  = $tfvcHash -eq $gitHash
@@ -316,14 +339,16 @@ function Test-TfvcMigration {
                 totalGitFiles  = $totalGit
                 onlyInTfvc     = @($allOnlyInTfvc)
                 onlyInGit      = @($allOnlyInGit)
+                cleanedOrphans = @($cleanedOrphans)
                 matchCount     = $totalInBoth
             }
             hashCheck        = [ordered]@{
-                result        = $hashResult
-                totalCompared = $compared
-                matched       = $matched
-                mismatched    = $mismatches.Count
-                mismatches    = @($mismatches | ForEach-Object { [ordered]@{ path = $_.path; tfvcHash = $_.tfvcHash; gitHash = $_.gitHash } })
+                result         = $hashResult
+                totalCompared  = $compared
+                matched        = $matched
+                mismatched     = $mismatches.Count
+                cleanedSecrets = @($cleanedSecrets)
+                mismatches     = @($mismatches | ForEach-Object { [ordered]@{ path = $_.path; tfvcHash = $_.tfvcHash; gitHash = $_.gitHash } })
             }
             changesetCoverage = [ordered]@{
                 result                  = $csResult

@@ -20,6 +20,8 @@ function Invoke-TfvcMigration {
         Skip the audit report generation step.
     .PARAMETER Push
         Push to GitHub after replay completes.
+    .PARAMETER PushOnly
+        Skip all migration steps and only attempt to push the local repository to GitHub.
     .PARAMETER Resume
         Resume export/replay from the last checkpoint.
     .EXAMPLE
@@ -28,6 +30,8 @@ function Invoke-TfvcMigration {
         Invoke-TfvcMigration -ConfigPath ./config.json -DryRun
     .EXAMPLE
         Invoke-TfvcMigration -ConfigPath ./config.json -Push
+    .EXAMPLE
+        Invoke-TfvcMigration -ConfigPath ./config.json -PushOnly
     #>
     [CmdletBinding()]
     param(
@@ -38,11 +42,20 @@ function Invoke-TfvcMigration {
         [switch]$SkipVerify,
         [switch]$SkipReport,
         [switch]$Push,
+        [switch]$PushOnly,
         [switch]$Resume
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($PushOnly) {
+        $SkipExport = $true
+        $SkipVerify = $true
+        $SkipReport = $true
+        $Push       = $true
+        $Resume     = $true
+    }
 
     $Version = if ($MyInvocation.MyCommand.Module -and $MyInvocation.MyCommand.Module.Version) {
         $MyInvocation.MyCommand.Module.Version.ToString()

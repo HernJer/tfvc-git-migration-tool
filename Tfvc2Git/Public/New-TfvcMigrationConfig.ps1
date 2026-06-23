@@ -187,7 +187,7 @@ location. Or choose where to save it:
             sourceMappings    = @(
                 @{ tfvcPath = $TfvcPath; destinationPath = ''; branch = $cfgBranch; gitParentBranch = $cfgParent }
             )
-            gitRemoteUrl      = $GitRemoteUrl
+            gitRemoteUrl      = if ($GitRemoteUrl) { $GitRemoteUrl.TrimEnd('/') } else { '' }
             outputDir         = $cfgOutputDir
             lfsThresholdBytes = 52428800
             lfsPatterns       = @('*.dll', '*.exe', '*.zip', '*.nupkg')
@@ -243,7 +243,7 @@ location. Or choose where to save it:
         # 4. Git remote
         Write-Host ''
         Write-Host '  -- GitHub --' -ForegroundColor White
-        $cfgGitRemote = Read-Prompt -Label 'Git remote URL (e.g. https://github.com/org/repo.git)'
+        $cfgGitRemote = (Read-Prompt -Label 'Git remote URL (e.g. https://github.com/org/repo.git)').TrimEnd('/')
 
         # 5. Output directory
         Write-Host ''

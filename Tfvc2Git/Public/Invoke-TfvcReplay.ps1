@@ -84,8 +84,9 @@ function Invoke-TfvcReplay {
         Invoke-Git -C $repoPath config core.longpaths true
 
         if ($config.gitRemoteUrl) {
-            Invoke-Git -C $repoPath remote add origin $config.gitRemoteUrl
-            Write-MigrationLog -Message "Remote 'origin' set to $($config.gitRemoteUrl)" -LogFile $logFile
+            $cleanUrl = $config.gitRemoteUrl.TrimEnd('/')
+            Invoke-Git -C $repoPath remote add origin $cleanUrl
+            Write-MigrationLog -Message "Remote 'origin' set to $cleanUrl" -LogFile $logFile
         }
     }
 
@@ -503,6 +504,10 @@ function Invoke-TfvcReplay {
     # --- Push (all branches) ---
 
     if ($Push) {
+        if ($config.gitRemoteUrl) {
+            $cleanUrl = $config.gitRemoteUrl.TrimEnd('/')
+            Invoke-Git -C $repoPath remote set-url origin $cleanUrl 2>&1 | Out-Null
+        }
         Write-MigrationLog -Message "Pushing all branches to remote..." -LogFile $logFile
         $pushOut = Invoke-Git -C $repoPath push -u origin --all 2>&1
         if ($LASTEXITCODE -ne 0) {

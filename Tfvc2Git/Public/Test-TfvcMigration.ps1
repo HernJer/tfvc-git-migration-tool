@@ -15,7 +15,8 @@ function Test-TfvcMigration {
     #>
     [CmdletBinding()]
     param(
-        [string]$ConfigPath = "./config.json"
+        [string]$ConfigPath = "./config.json",
+        [switch]$Push
     )
 
     $ErrorActionPreference = 'Stop'
@@ -292,6 +293,12 @@ function Test-TfvcMigration {
         Write-MigrationLog "  Exported changesets: $($exportedIds.Count)  Mapped commits: $totalMappedCommits  Unmapped: $($unmappedCs.Count)  Orphaned: $($orphanedCommits.Count)" -LogFile $logFile
 
         # --- Pass 4: Remote push verification ---
+        if ($Push) {
+            Write-MigrationLog "Pushing to remote ($($config.gitRemoteUrl))..." -LogFile $logFile
+            Invoke-Git -C $repoPath push -u origin --all 2>&1 | Out-Null
+            Invoke-Git -C $repoPath push --tags 2>&1 | Out-Null
+        }
+
         $remoteResult = 'N/A'
         $remoteUnpushed = [System.Collections.Generic.List[string]]::new()
         $remoteUrlOut = Invoke-Git -C $repoPath config --get remote.origin.url 2>&1

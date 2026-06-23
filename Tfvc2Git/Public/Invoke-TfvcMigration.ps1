@@ -204,7 +204,10 @@ function Invoke-TfvcMigration {
 
     # Step 3: Verify
     if (-not $DryRun -and -not $SkipVerify -and -not $failed) {
-        $ok = Invoke-Step -Number 3 -Name 'Verify' -Command 'Test-TfvcMigration'
+        $verifyArgs = @()
+        if ($Push) { $verifyArgs += '-Push' }
+
+        $ok = Invoke-Step -Number 3 -Name 'Verify' -Command 'Test-TfvcMigration' -ExtraArgs $verifyArgs
         if (-not $ok) { $failed = $true }
     }
     elseif (-not $DryRun -and $SkipVerify) {

@@ -15,7 +15,8 @@ function Test-TfvcMigration {
     #>
     [CmdletBinding()]
     param(
-        [string]$ConfigPath = "./config.json"
+        [string]$ConfigPath = "./config.json",
+        [switch]$Push
     )
 
     $ErrorActionPreference = 'Stop'
@@ -126,6 +127,10 @@ function Test-TfvcMigration {
                     $cleanedOrphans.Add("${b}:$f")
                 }
                 Invoke-Git -C $repoPath commit -m "Tfvc2Git-Generated: Remove orphaned files destroyed in TFVC`n`nThese files were present in historical changesets but no longer exist in the TFVC tip, likely due to a Destroy operation." 2>&1 | Out-Null
+                if ($Push) {
+                    Write-MigrationLog "  [$b] Pushing cleanup commit to remote..." -LogFile $logFile
+                    Invoke-Git -C $repoPath push origin $b 2>&1 | Out-Null
+                }
                 $onlyInGit = @()
             }
 

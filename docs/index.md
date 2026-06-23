@@ -11,6 +11,9 @@ Welcome to the detailed documentation for the `tfvc2git` migration tool. This do
 3. [Troubleshooting & Edge Cases](./troubleshooting-and-edge-cases.md)
    * A comprehensive guide to handling pipeline failures, network interruptions, remote push rejections, and TFVC edge cases.
 
+4. [Auditor's Guide](./auditor-guide.md)
+   * A guide for compliance officers explaining how to read and interpret the generated HTML audit report.
+
 ## Quick Reference
 
 If you are looking for the basic commands and quick start guide, please refer to the main repository [README](../README.md).

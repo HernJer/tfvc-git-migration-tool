@@ -101,10 +101,11 @@ function Export-TfvcChangeset {
 
     # --- Worker Block ---
     $worker = {
-        param($cs, $conn, $config, $ModulePath)
+        param($cs, $conn, $config, $ModuleRoot)
 
-        if ($ModulePath) {
-            Import-Module -Name $ModulePath -Scope Local -ErrorAction SilentlyContinue
+        if ($ModuleRoot) {
+            . (Join-Path $ModuleRoot 'Private\TfvcApi.ps1')
+            . (Join-Path $ModuleRoot 'Private\BranchHelpers.ps1')
         }
 
         # --- Helper: find the mapping for a server path ---
@@ -275,7 +276,7 @@ function Export-TfvcChangeset {
     $index = 0
 
     if ($exportConcurrency -gt 1) {
-        $modulePath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tfvc2Git.psd1'
+        $moduleRoot = Split-Path $PSScriptRoot -Parent
         
         if ($PSVersionTable.PSVersion.Major -ge 7) {
             Write-MigrationLog -Message "Running parallel export using ForEach-Object -Parallel (PS7+)" -LogFile $logFile
@@ -284,7 +285,7 @@ function Export-TfvcChangeset {
                     cs = $_
                     conn = $using:conn
                     config = $using:config
-                    ModulePath = $using:modulePath
+                    ModuleRoot = $using:moduleRoot
                 }
                 & $using:worker @params
             } -ThrottleLimit $exportConcurrency
@@ -310,7 +311,7 @@ function Export-TfvcChangeset {
                         AddArgument($cs).
                         AddArgument($conn).
                         AddArgument($config).
-                        AddArgument($modulePath)
+                        AddArgument($moduleRoot)
                     $jobs.Add([pscustomobject]@{ PS = $ps; Handle = $ps.BeginInvoke(); csId = $cs.changesetId })
                 }
                 
@@ -358,7 +359,7 @@ function Export-TfvcChangeset {
                 Write-MigrationLog -Message "Processing changeset $($cs.changesetId)  ($index / $totalCount)" -LogFile $logFile
             }
 
-            $res = & $worker -cs $cs -conn $conn -config $config -ModulePath $null
+            $res = & $worker -cs $cs -conn $conn -config $config -ModuleRoot $null
             if ($res.Error) {
                 Write-MigrationLog -Message $res.Error -Level ERROR -LogFile $logFile
                 throw $res.Error

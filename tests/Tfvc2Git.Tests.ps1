@@ -270,3 +270,61 @@ Describe 'Invoke-Git (private)' {
         }
     }
 }
+
+Describe 'Invoke-ExportWorker (private)' {
+    It 'returns a structured changeset object' {
+        InModuleScope $script:ModuleName {
+            Mock -CommandName Get-TfvcChangesetChanges -ModuleName $script:ModuleName -MockWith { return @() }
+            Mock -CommandName Get-TfvcChangesetWorkItems -ModuleName $script:ModuleName -MockWith { return @() }
+            
+            $cs = [PSCustomObject]@{ changesetId = 123; author = 'TestUser'; createdDate = '2026-01-01'; comment = 'Test' }
+            $conn = @{}
+            $config = @{ sourceMappings = @() }
+            
+            $result = Invoke-ExportWorker -Changeset $cs -Connection $conn -Config $config
+            $result.changesetId | Should -Be 123
+            $result.author | Should -Be 'TestUser'
+        }
+    }
+}
+
+Describe 'Export-TfvcChangeset (Parallel Execution)' {
+    It 'correctly scopes private functions to parallel runspaces' {
+        $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) "tfvc2git-export-test-$([guid]::NewGuid())"
+        New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+        
+        $configPath = Join-Path $tempDir 'config.json'
+        $configObj = @{
+            adoServerUrl = 'https://dummy.local/tfs'
+            collection = 'DefaultCollection'
+            project = 'Proj'
+            pat = 'dummy'
+            outputDir = $tempDir
+            exportConcurrency = 2
+            sourceMappings = @( @{ tfvcPath = '$/Proj'; branch = 'main' } )
+        }
+        $configObj | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+        
+        try {
+            InModuleScope $script:ModuleName {
+                Mock -CommandName Get-TfvcAllChangesets -ModuleName $script:ModuleName -MockWith {
+                    return @( [PSCustomObject]@{ changesetId = 1; author='A'; comment='B' } )
+                }
+                
+                $err = $null
+                try {
+                    Export-TfvcChangeset -ConfigPath $configPath -ErrorAction Stop
+                } catch {
+                    $err = $_
+                }
+                
+                $err | Should -Not -BeNullOrEmpty
+                $err.Exception.Message | Should -Not -Match "not recognized as the name of a cmdlet"
+                $err.Exception.Message | Should -Not -Match "CommandNotFoundException"
+            }
+        }
+        finally {
+            Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}

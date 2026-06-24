@@ -1,4 +1,4 @@
-﻿function Export-TfvcChangeset {
+function Export-TfvcChangeset {
     <#
     .SYNOPSIS
         Exports TFVC changeset metadata for configured source paths.
@@ -46,12 +46,14 @@
 
     # --- Connect ---
 
-    $conn = New-TfvcConnection 
-        -ServerUrl  $config.adoServerUrl 
-        -Collection $config.collection 
-        -Project    $config.project 
-        -Pat        $config.pat 
-        -ApiVersion $(if ($config.apiVersion) { $config.apiVersion } else { '7.0' })
+    $connArgs = @{
+        ServerUrl  = $config.adoServerUrl
+        Collection = $config.collection
+        Project    = $config.project
+        Pat        = $config.pat
+        ApiVersion = $(if ($config.apiVersion) { $config.apiVersion } else { '7.0' })
+    }
+    $conn = New-TfvcConnection @connArgs
 
     Write-MigrationLog -Message "Connected to $($config.adoServerUrl)/$($config.collection)/$($config.project)" -LogFile $logFile
 
@@ -320,8 +322,8 @@
                     }
                     
                     $pct = if ($totalCount -gt 0) { [int](($completed / $totalCount) * 100) } else { 100 }
-                    Write-Progress -Activity 'Exporting TFVC changesets' 
-                        -Status "Changeset $($j.csId)  ($completed / $totalCount)" 
+                    Write-Progress -Activity 'Exporting TFVC changesets' `
+                        -Status "Changeset $($j.csId)  ($completed / $totalCount)" `
                         -PercentComplete $pct
 
                     try {
@@ -348,8 +350,8 @@
         foreach ($cs in $changesets) {
             $index++
             $pct = if ($totalCount -gt 0) { [int](($index / $totalCount) * 100) } else { 100 }
-            Write-Progress -Activity 'Exporting TFVC changesets' 
-                -Status "Changeset $($cs.changesetId)  ($index / $totalCount)" 
+            Write-Progress -Activity 'Exporting TFVC changesets' `
+                -Status "Changeset $($cs.changesetId)  ($index / $totalCount)" `
                 -PercentComplete $pct
 
             if ($index % 100 -eq 0 -or $index -eq 1 -or $index -eq $totalCount) {

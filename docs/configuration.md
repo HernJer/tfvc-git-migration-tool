@@ -63,6 +63,17 @@ During the Replay and Verify phases, physical files must be downloaded from TFVC
 ```
 *Warning: Setting this too high (e.g., > 32) can cause your TFS server to throw HTTP 429 Too Many Requests or HTTP 503 Service Unavailable errors.*
 
+### `exportConcurrency`
+During the Export phase, metadata for each changeset is fetched from TFVC. By default, `tfvc2git` fetches metadata for 1 changeset at a time (sequential execution) to ensure maximum compatibility. You can increase this value to fetch changeset metadata in parallel, drastically speeding up the export phase.
+
+```json
+{
+  "exportConcurrency": 8,
+  "sourceMappings": [ ... ]
+}
+```
+*Note: In PowerShell 5.1, this uses a background RunspacePool. In PowerShell 7+, it leverages the native `ForEach-Object -Parallel`.*
+
 ### `apiVersion`
 The Azure DevOps REST API version to target. Defaults to `7.0`. Older TFS 2017/2018 servers may require a lower version (e.g., `3.0` or `4.1`). If you encounter HTTP 400 or HTTP 404 errors during export, lowering the `apiVersion` will often resolve the issue.
 

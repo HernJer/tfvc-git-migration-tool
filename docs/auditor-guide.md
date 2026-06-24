@@ -60,3 +60,28 @@ The report includes a "Known Gaps" section that outlines fundamental differences
 1. **Empty Folders:** TFVC tracks folders as distinct items. Git only tracks files. Any empty folders in TFVC are intentionally dropped.
 2. **Git Ignore / Attributes:** The files `.gitignore` and `.gitattributes` are reserved by Git. If TFVC happens to contain files with these exact names, they are dropped to prevent them from interfering with the new Git repository's configuration.
 3. **Case Sensitivity:** Windows and TFVC are case-insensitive, but Git is fundamentally case-sensitive. The tool normalizes file paths to match the exact casing provided by the TFVC server to prevent duplicate file conflicts on Linux-based Git hosting platforms.
+
+---
+
+## Audit Process & Formal Sign-off
+
+To satisfy Data Migration Plan and Sign-off requirements without manual overhead, this tool natively employs an "Audit as Code" approach via GitOps.
+
+### 1. Automated Audit PR Generation
+When the migration completes successfully and pushes the code to the target repository (e.g., `main`), the tool automatically executes an additional Audit Publish step:
+- It creates a new, dedicated branch for the audit report (e.g., `audit/migration-report-<timestamp>`).
+- It commits the `audit-report.html` and migration logs into a `.migration-audit/` folder.
+- It uses the GitHub CLI (`gh`) to automatically open a Pull Request against the target branch (`main`).
+
+### 2. The Pull Request as the Migration Plan
+The automated Pull Request serves as the formal Migration Plan. The PR body outlines the scope and requests review of the attached cryptographic evidence.
+
+### 3. Formal Stakeholder Sign-off
+Data owners, technical leads, and compliance officers are added as Reviewers to this Pull Request.
+- Reviewers download and inspect the `audit-report.html` from the PR files.
+- By clicking **Approve** on the Pull Request, stakeholders provide their formal, non-repudiable sign-off that the migration results are accepted.
+
+### 4. Access Restrictions and Integrity (RBAC)
+Once the Pull Request is approved and merged into `main`:
+- Standard branch protection policies prevent any unauthorized user from tampering with or rewriting the migration history or the audit report.
+- Every action (who ran the migration, who approved it, who merged it) is permanently logged in the Git provider's audit trail, satisfying strict compliance access controls.

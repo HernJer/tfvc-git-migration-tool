@@ -92,6 +92,14 @@ function Invoke-TfvcMigration {
     Write-Host "  Git Remote : $($config.gitRemoteUrl)" -ForegroundColor Gray
     Write-Host "  Output Dir : $($config.outputDir)" -ForegroundColor Gray
     Write-Host "  PAT        : ****" -ForegroundColor Gray
+    
+    if ($config.auditMetadata) {
+        Write-Host ''
+        Write-Host '  -- Audit / Migration Plan Metadata --' -ForegroundColor White
+        Write-Host "  Scope      : $($config.auditMetadata.migrationScope)" -ForegroundColor Gray
+        Write-Host "  Data Owner : $($config.auditMetadata.dataOwner)" -ForegroundColor Gray
+        Write-Host "  Tech Owner : $($config.auditMetadata.technicalOwner)" -ForegroundColor Gray
+    }
     Write-Host ''
 
     # --- Mode summary ---
@@ -224,6 +232,17 @@ function Invoke-TfvcMigration {
     elseif (-not $DryRun -and $SkipReport) {
         Write-Host '  Step 4: Report - SKIPPED' -ForegroundColor DarkYellow
         $stepResults['Report'] = 'SKIPPED'
+        Write-Host ''
+    }
+
+    # Step 5: Audit Sign-off (Automated PR)
+    if (-not $DryRun -and $Push -and -not $failed) {
+        $ok = Invoke-Step -Number 5 -Name 'Audit PR' -Command 'Publish-GitHubAuditPr'
+        if (-not $ok) { $failed = $true }
+    }
+    elseif (-not $DryRun -and -not $Push) {
+        Write-Host '  Step 5: Audit PR - SKIPPED (Requires -Push)' -ForegroundColor DarkYellow
+        $stepResults['Audit PR'] = 'SKIPPED'
         Write-Host ''
     }
 

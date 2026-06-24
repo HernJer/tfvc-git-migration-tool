@@ -27,6 +27,13 @@
 
     "gitRemoteUrl": "https://github.com/your-org/your-repo.git",
     "outputDir": "./migration-output",
+    "auditMetadata": {
+        "migrationScope": "Complete history of Application1 from TFVC to Git.",
+        "dataOwner": "Jane Doe <jane.doe@company.com>",
+        "technicalOwner": "John Smith <john.smith@company.com>",
+        "acceptanceCriteria": "100% hash match, no missing files, PR approval.",
+        "exceptionHandling": "Discrepancies will be documented as Known Gaps or fixed pre-migration."
+    },
     "lfsThresholdBytes": 52428800,
     "lfsPatterns": ["*.dll", "*.exe", "*.zip", "*.nupkg"],
     "downloadConcurrency": 8,

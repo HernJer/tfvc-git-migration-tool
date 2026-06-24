@@ -44,7 +44,9 @@ function New-TfvcMigrationConfig {
         [string]$Branch = 'main',
         [string]$ParentBranch,
         [string]$GitRemoteUrl,
-        [string]$OutputDir
+        [string]$OutputDir,
+        [int]$ExportConcurrency = 1,
+        [int]$DownloadConcurrency = 8
     )
 
     Set-StrictMode -Version Latest
@@ -189,10 +191,17 @@ location. Or choose where to save it:
             )
             gitRemoteUrl      = if ($GitRemoteUrl) { $GitRemoteUrl.TrimEnd('/') } else { '' }
             outputDir         = $cfgOutputDir
+            auditMetadata     = @{
+                migrationScope     = "Describe the scope of the migration here."
+                dataOwner          = "Data Owner Name <email@company.com>"
+                technicalOwner     = "Technical Lead Name <email@company.com>"
+                acceptanceCriteria = "100% hash match, no missing files, PR approval."
+                exceptionHandling  = "Discrepancies will be documented as Known Gaps or fixed pre-migration."
+            }
             lfsThresholdBytes = 52428800
             lfsPatterns       = @('*.dll', '*.exe', '*.zip', '*.nupkg')
-            downloadConcurrency = 8
-            exportConcurrency   = 1
+            downloadConcurrency = $DownloadConcurrency
+            exportConcurrency   = $ExportConcurrency
             addGitignore        = $true
             secretScanningEnabled = $false
             secretReplacementToken = "***REMOVED***"
@@ -251,7 +260,15 @@ location. Or choose where to save it:
         Write-Host '  -- Output --' -ForegroundColor White
         $cfgOutputDir = Read-Prompt -Label 'Output directory' -Default './migration-output'
 
-        # 6. LFS settings
+        # 6. Audit & Migration Plan
+        Write-Host ''
+        Write-Host '  -- Audit & Migration Plan --' -ForegroundColor White
+        Write-Host '  These details will be embedded in the final Audit Report for compliance sign-off.' -ForegroundColor Gray
+        $cfgMigrationScope = Read-Prompt -Label 'Migration Scope' -Default 'Complete history from TFVC to Git'
+        $cfgDataOwner      = Read-Prompt -Label 'Data Owner (Name/Email)' -Default 'Data Owner Name <email@company.com>'
+        $cfgTechOwner      = Read-Prompt -Label 'Technical Owner (Name/Email)' -Default 'Technical Lead Name <email@company.com>'
+
+        # 7. LFS settings
         Write-Host ''
         Write-Host '  -- Git LFS --' -ForegroundColor White
         $lfsRaw = Read-Prompt -Label 'LFS threshold (e.g. 50MB)' -Default '50MB'
@@ -269,6 +286,12 @@ location. Or choose where to save it:
         $lfsPatRaw = Read-Prompt -Label 'LFS patterns (comma-separated)' -Default '*.dll,*.exe,*.zip,*.nupkg'
         $cfgLfsPatterns = $lfsPatRaw -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 
+        # 8. Performance Tuning
+        Write-Host ''
+        Write-Host '  -- Performance Tuning --' -ForegroundColor White
+        $cfgExportConc = [int](Read-Prompt -Label 'Export Concurrency (TFVC API calls)' -Default '1')
+        $cfgDownloadConc = [int](Read-Prompt -Label 'Download Concurrency (parallel file downloads)' -Default '8')
+
         $config = @{
             adoServerUrl      = $cfgServerUrl
             collection        = $cfgCollection
@@ -278,10 +301,17 @@ location. Or choose where to save it:
             sourceMappings    = @($mappings)
             gitRemoteUrl      = $cfgGitRemote
             outputDir         = $cfgOutputDir
+            auditMetadata     = @{
+                migrationScope     = $cfgMigrationScope
+                dataOwner          = $cfgDataOwner
+                technicalOwner     = $cfgTechOwner
+                acceptanceCriteria = "100% hash match, no missing files, PR approval."
+                exceptionHandling  = "Discrepancies will be documented as Known Gaps or fixed pre-migration."
+            }
             lfsThresholdBytes = $cfgLfsBytes
             lfsPatterns       = @($cfgLfsPatterns)
-            downloadConcurrency = 8
-            exportConcurrency   = 1
+            downloadConcurrency = $cfgDownloadConc
+            exportConcurrency   = $cfgExportConc
             addGitignore        = $true
             secretScanningEnabled = $false
             secretReplacementToken = "***REMOVED***"

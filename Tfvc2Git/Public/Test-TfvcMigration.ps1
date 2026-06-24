@@ -295,8 +295,21 @@ function Test-TfvcMigration {
         # --- Pass 4: Remote push verification ---
         if ($Push) {
             Write-MigrationLog "Pushing to remote ($($config.gitRemoteUrl))..." -LogFile $logFile
-            Invoke-Git -C $repoPath push -u origin --all 2>&1 | Out-Null
-            Invoke-Git -C $repoPath push --tags 2>&1 | Out-Null
+            
+            $maxRetries = 3
+            for ($i = 1; $i -le $maxRetries; $i++) {
+                $pushOut = Invoke-Git -C $repoPath push -u origin --all 2>&1
+                if ($LASTEXITCODE -eq 0) { break }
+                Write-MigrationLog "  [!] Push --all failed (Attempt $i of $maxRetries): $pushOut" -Level WARN -LogFile $logFile
+                if ($i -lt $maxRetries) { Start-Sleep -Seconds 5 }
+            }
+            
+            for ($i = 1; $i -le $maxRetries; $i++) {
+                $pushTagsOut = Invoke-Git -C $repoPath push --tags 2>&1
+                if ($LASTEXITCODE -eq 0) { break }
+                Write-MigrationLog "  [!] Push --tags failed (Attempt $i of $maxRetries): $pushTagsOut" -Level WARN -LogFile $logFile
+                if ($i -lt $maxRetries) { Start-Sleep -Seconds 5 }
+            }
         }
 
         $remoteResult = 'N/A'

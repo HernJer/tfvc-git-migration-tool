@@ -52,10 +52,10 @@ function Publish-GitHubAuditPr {
         }
 
         # Ensure we are on the base branch and clean
-        git checkout $baseBranch 2>&1 | Out-Null
+        git checkout -q $baseBranch 2>&1 | Out-Null
         
         # Create and checkout the new audit branch
-        git checkout -b $branchName 2>&1 | Out-Null
+        git checkout -q -b $branchName 2>&1 | Out-Null
 
         # Create audit directory
         $auditDir = Join-Path $gitRepoDir '.migration-audit'
@@ -70,12 +70,21 @@ function Publish-GitHubAuditPr {
         }
 
         # Commit
-        git add .migration-audit/ 2>&1 | Out-Null
-        git commit -m "chore: Add migration audit report for formal sign-off" 2>&1 | Out-Null
+        git add .migration-audit/
+        git commit -m "chore: Add migration audit report for formal sign-off"
 
         # Push branch
         Write-Host "  [+] Pushing audit branch to remote..." -ForegroundColor Cyan
-        git push -u origin $branchName 2>&1 | Out-Null
+        $maxRetries = 3
+        for ($i = 1; $i -le $maxRetries; $i++) {
+            git push -u origin $branchName
+            if ($LASTEXITCODE -eq 0) { break }
+            Write-Host "  [!] Push failed (Attempt $i of $maxRetries)" -ForegroundColor Yellow
+            if ($i -lt $maxRetries) { Start-Sleep -Seconds 5 }
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to push audit branch to remote after $maxRetries attempts."
+        }
 
         # Create PR
         Write-Host "  [+] Creating GitHub Pull Request..." -ForegroundColor Cyan

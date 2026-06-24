@@ -192,6 +192,7 @@ location. Or choose where to save it:
             lfsThresholdBytes = 52428800
             lfsPatterns       = @('*.dll', '*.exe', '*.zip', '*.nupkg')
             downloadConcurrency = 8
+            exportConcurrency   = 1
             addGitignore        = $true
             secretScanningEnabled = $false
             secretReplacementToken = "***REMOVED***"
@@ -280,6 +281,7 @@ location. Or choose where to save it:
             lfsThresholdBytes = $cfgLfsBytes
             lfsPatterns       = @($cfgLfsPatterns)
             downloadConcurrency = 8
+            exportConcurrency   = 1
             addGitignore        = $true
             secretScanningEnabled = $false
             secretReplacementToken = "***REMOVED***"

@@ -1,4 +1,4 @@
-function Export-TfvcChangeset {
+﻿function Export-TfvcChangeset {
     <#
     .SYNOPSIS
         Exports TFVC changeset metadata for configured source paths.
@@ -36,16 +36,21 @@ function Export-TfvcChangeset {
     $logFile = Join-Path $outputDir 'migration-log.txt'
     $checkpointFile = Join-Path $outputDir 'export-checkpoint.json'
 
+    $exportConcurrency = $([int]1)
+    if ($null -ne $config.psobject.Properties['exportConcurrency'] -and $config.exportConcurrency) {
+        $exportConcurrency = [int]$config.exportConcurrency
+    }
+
     Write-MigrationLog -Message "=== TFVC Export started ===" -LogFile $logFile
-    Write-MigrationLog -Message "Config: $ConfigPath | Resume: $Resume" -LogFile $logFile
+    Write-MigrationLog -Message "Config: $ConfigPath | Resume: $Resume | Concurrency: $exportConcurrency" -LogFile $logFile
 
     # --- Connect ---
 
-    $conn = New-TfvcConnection `
-        -ServerUrl  $config.adoServerUrl `
-        -Collection $config.collection `
-        -Project    $config.project `
-        -Pat        $config.pat `
+    $conn = New-TfvcConnection 
+        -ServerUrl  $config.adoServerUrl 
+        -Collection $config.collection 
+        -Project    $config.project 
+        -Pat        $config.pat 
         -ApiVersion $(if ($config.apiVersion) { $config.apiVersion } else { '7.0' })
 
     Write-MigrationLog -Message "Connected to $($config.adoServerUrl)/$($config.collection)/$($config.project)" -LogFile $logFile
@@ -82,59 +87,51 @@ function Export-TfvcChangeset {
     $totalCount = @($changesets).Count
     Write-MigrationLog -Message "Total unique changesets to export: $totalCount" -LogFile $logFile
 
+    if ($totalCount -eq 0) {
+        Write-MigrationLog -Message "No changesets to export." -LogFile $logFile
+        Write-MigrationLog -Message "=== TFVC Export finished ===" -LogFile $logFile
+        return
+    }
+
     # --- Build tfvcPath list for filtering ---
 
     $tfvcPaths = @($config.sourceMappings | ForEach-Object { $_.tfvcPath.Replace('\', '/').TrimEnd('/') })
 
-    # --- Helper: find the mapping for a server path ---
+    # --- Worker Block ---
+    $worker = {
+        param($cs, $conn, $config, $ModulePath)
 
-    function Find-SourceMapping {
-        param([string]$ServerPath)
-        $sp = $ServerPath.Replace('\', '/').TrimEnd('/')
-        foreach ($m in $config.sourceMappings) {
-            $base = $m.tfvcPath.Replace('\', '/').TrimEnd('/')
-            if ($sp.StartsWith($base, [StringComparison]::OrdinalIgnoreCase)) {
-                return $m
-            }
+        if ($ModulePath) {
+            Import-Module -Name $ModulePath -Scope Local -ErrorAction SilentlyContinue
         }
-        return $null
-    }
 
-    # --- Helper: normalise changeType to primary type ---
+        # --- Helper: find the mapping for a server path ---
+        function Find-SourceMapping {
+            param([string]$ServerPath)
+            $sp = $ServerPath.Replace('\', '/').TrimEnd('/')
+            foreach ($m in $config.sourceMappings) {
+                $base = $m.tfvcPath.Replace('\', '/').TrimEnd('/')
+                if ($sp.StartsWith($base, [StringComparison]::OrdinalIgnoreCase)) {
+                    return $m
+                }
+            }
+            return $null
+        }
 
-    function Get-PrimaryChangeType {
-        param([string]$RawChangeType)
-        $types = $RawChangeType -split ',' | ForEach-Object { $_.Trim() }
+        # --- Helper: normalise changeType to primary type ---
+        function Get-PrimaryChangeType {
+            param([string]$RawChangeType)
+            $types = $RawChangeType -split ',' | ForEach-Object { $_.Trim() }
 
-        if ($types -contains 'delete') { return 'delete' }
-        if ($types -contains 'sourcerename') { return 'delete' }
-        if ($types -contains 'rename') { return 'rename' }
-        if ($types -contains 'add') { return 'add' }
-        if ($types -contains 'branch') { return 'branch' }
-        if ($types -contains 'undelete') { return 'undelete' }
-        if ($types -contains 'merge') { return 'merge' }
+            if ($types -contains 'delete') { return 'delete' }
+            if ($types -contains 'sourcerename') { return 'delete' }
+            if ($types -contains 'rename') { return 'rename' }
+            if ($types -contains 'add') { return 'add' }
+            if ($types -contains 'branch') { return 'branch' }
+            if ($types -contains 'undelete') { return 'undelete' }
+            if ($types -contains 'merge') { return 'merge' }
 
-        return 'edit'
-    }
-
-    # --- Enrich each changeset ---
-
-    $exportedChangesets = [System.Collections.Generic.List[object]]::new()
-    $index = 0
-
-    foreach ($cs in $changesets) {
-        $index++
-
-        # Live progress bar so a long run never looks frozen (each changeset is
-        # several API calls). The log keeps periodic text milestones.
-        $pct = if ($totalCount -gt 0) { [int](($index / $totalCount) * 100) } else { 100 }
-        Write-Progress -Activity 'Exporting TFVC changesets' `
-            -Status "Changeset $($cs.changesetId)  ($index / $totalCount)" `
-            -PercentComplete $pct
-
-        # Progress (persistent log)
-        if ($index % 25 -eq 0 -or $index -eq 1 -or $index -eq $totalCount) {
-            Write-MigrationLog -Message "Processing changeset $($cs.changesetId)  ($index / $totalCount)" -LogFile $logFile
+            return 'edit'
         }
 
         try {
@@ -142,8 +139,7 @@ function Export-TfvcChangeset {
             $workItems = @(Get-TfvcChangesetWorkItems -Connection $conn -ChangesetId $cs.changesetId)
         }
         catch {
-            Write-MigrationLog -Message "ERROR fetching details for changeset $($cs.changesetId): $_" -Level ERROR -LogFile $logFile
-            throw
+            return @{ Error = "ERROR fetching details for changeset $($cs.changesetId): $_" }
         }
 
         # Filter to in-scope file changes
@@ -262,19 +258,115 @@ function Export-TfvcChangeset {
         $comment = if ($null -ne $cs.psobject.Properties['comment']) { $cs.comment } else { '' }
         $createdDate = if ($null -ne $cs.psobject.Properties['createdDate']) { $cs.createdDate } else { '' }
 
-        $exportedChangesets.Add([PSCustomObject]@{
+        return [PSCustomObject]@{
             changesetId = $cs.changesetId
             author      = $authorName
             createdDate = $createdDate
             comment     = $comment
             workItems   = $wiList
             changes     = @($scopedChanges)
-        })
+        }
+    }
 
-        # Checkpoint every 100
-        if ($index % 100 -eq 0) {
-            @{ lastChangesetId = $cs.changesetId; timestamp = (Get-Date -Format 'o') } |
-                ConvertTo-Json | Set-Content -Path $checkpointFile -Encoding UTF8
+    # --- Execution ---
+    $exportedChangesets = [System.Collections.Generic.List[object]]::new()
+    $index = 0
+
+    if ($exportConcurrency -gt 1) {
+        $modulePath = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tfvc2Git.psd1'
+        
+        if ($PSVersionTable.PSVersion.Major -ge 7) {
+            Write-MigrationLog -Message "Running parallel export using ForEach-Object -Parallel (PS7+)" -LogFile $logFile
+            $results = $changesets | ForEach-Object -Parallel {
+                $params = @{
+                    cs = $_
+                    conn = $using:conn
+                    config = $using:config
+                    ModulePath = $using:modulePath
+                }
+                & $using:worker @params
+            } -ThrottleLimit $exportConcurrency
+            
+            foreach ($res in $results) {
+                if ($res.Error) {
+                    Write-MigrationLog -Message $res.Error -Level ERROR -LogFile $logFile
+                    throw $res.Error
+                }
+                $exportedChangesets.Add($res)
+            }
+            $exportedChangesets = [System.Collections.Generic.List[object]]($exportedChangesets | Sort-Object changesetId)
+        } else {
+            Write-MigrationLog -Message "Running parallel export using RunspacePool (PS5.1)" -LogFile $logFile
+            $pool = [runspacefactory]::CreateRunspacePool(1, $exportConcurrency)
+            $pool.Open()
+            try {
+                $jobs = [System.Collections.Generic.List[object]]::new()
+                foreach ($cs in $changesets) {
+                    $ps = [powershell]::Create()
+                    $ps.RunspacePool = $pool
+                    [void]$ps.AddScript($worker).
+                        AddArgument($cs).
+                        AddArgument($conn).
+                        AddArgument($config).
+                        AddArgument($modulePath)
+                    $jobs.Add([pscustomobject]@{ PS = $ps; Handle = $ps.BeginInvoke(); csId = $cs.changesetId })
+                }
+                
+                $completed = 0
+                foreach ($j in $jobs) {
+                    $completed++
+                    if ($completed % 100 -eq 0 -or $completed -eq 1 -or $completed -eq $totalCount) {
+                        Write-MigrationLog -Message "Processing changeset $($j.csId)  ($completed / $totalCount)" -LogFile $logFile
+                    }
+                    
+                    $pct = if ($totalCount -gt 0) { [int](($completed / $totalCount) * 100) } else { 100 }
+                    Write-Progress -Activity 'Exporting TFVC changesets' 
+                        -Status "Changeset $($j.csId)  ($completed / $totalCount)" 
+                        -PercentComplete $pct
+
+                    try {
+                        $res = $j.PS.EndInvoke($j.Handle)
+                        if ($res) {
+                            if ($res.Error) {
+                                Write-MigrationLog -Message $res.Error -Level ERROR -LogFile $logFile
+                                throw $res.Error
+                            }
+                            $exportedChangesets.Add($res[0])
+                        }
+                    }
+                    finally { $j.PS.Dispose() }
+                }
+                $exportedChangesets = [System.Collections.Generic.List[object]]($exportedChangesets | Sort-Object changesetId)
+            }
+            finally {
+                $pool.Close()
+                $pool.Dispose()
+            }
+        }
+    } else {
+        # Sequential Execution
+        foreach ($cs in $changesets) {
+            $index++
+            $pct = if ($totalCount -gt 0) { [int](($index / $totalCount) * 100) } else { 100 }
+            Write-Progress -Activity 'Exporting TFVC changesets' 
+                -Status "Changeset $($cs.changesetId)  ($index / $totalCount)" 
+                -PercentComplete $pct
+
+            if ($index % 100 -eq 0 -or $index -eq 1 -or $index -eq $totalCount) {
+                Write-MigrationLog -Message "Processing changeset $($cs.changesetId)  ($index / $totalCount)" -LogFile $logFile
+            }
+
+            $res = & $worker -cs $cs -conn $conn -config $config -ModulePath $null
+            if ($res.Error) {
+                Write-MigrationLog -Message $res.Error -Level ERROR -LogFile $logFile
+                throw $res.Error
+            }
+            $exportedChangesets.Add($res)
+
+            if ($index % 100 -eq 0) {
+                @{ lastChangesetId = $cs.changesetId; timestamp = (Get-Date -Format 'o') } |
+                    ConvertTo-Json | Set-Content -Path $checkpointFile -Encoding UTF8
+            }
         }
     }
 

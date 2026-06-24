@@ -136,6 +136,7 @@ function Export-TfvcChangeset {
                     Write-MigrationLog -Message $res.Error -Level ERROR -LogFile $logFile
                     throw $res.Error
                 }
+                $res.psobject.properties.remove('Error')
                 $exportedChangesets.Add($res)
             }
             $exportedChangesets = [System.Collections.Generic.List[object]]($exportedChangesets | Sort-Object changesetId)
@@ -175,6 +176,7 @@ function Export-TfvcChangeset {
                                 Write-MigrationLog -Message $res.Error -Level ERROR -LogFile $logFile
                                 throw $res.Error
                             }
+                            $res[0].psobject.properties.remove('Error')
                             $exportedChangesets.Add($res[0])
                         }
                     }
@@ -205,6 +207,7 @@ function Export-TfvcChangeset {
                 Write-MigrationLog -Message $res.Error -Level ERROR -LogFile $logFile
                 throw $res.Error
             }
+            $res.psobject.properties.remove('Error')
             $exportedChangesets.Add($res)
 
             if ($index % 100 -eq 0) {

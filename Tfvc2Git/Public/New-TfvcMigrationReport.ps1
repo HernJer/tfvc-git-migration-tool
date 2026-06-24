@@ -100,14 +100,15 @@ function New-TfvcMigrationReport {
         $hashTableRows = ''
         foreach ($row in $hashCsv) {
             $branch    = ConvertTo-HtmlSafe $row.Branch
-            $path      = ConvertTo-HtmlSafe $row.Path
+            $tfvcPath  = ConvertTo-HtmlSafe $row.TfvcPath
+            $gitPath   = ConvertTo-HtmlSafe $row.GitPath
             $tfvcFull  = ConvertTo-HtmlSafe $row.TfvcSHA256
             $gitFull   = ConvertTo-HtmlSafe $row.GitSHA256
             $tfvcShort = ConvertTo-HtmlSafe (Get-TruncatedHash $row.TfvcSHA256)
             $gitShort  = ConvertTo-HtmlSafe (Get-TruncatedHash $row.GitSHA256)
             $match     = $row.Match
             $cls       = if ($match -ne 'True') { ' class="mismatch"' } else { '' }
-            $hashTableRows += "<tr$cls><td>$branch</td><td class=`"mono`">$path</td><td class=`"mono`" title=`"$tfvcFull`">$tfvcShort</td><td class=`"mono`" title=`"$gitFull`">$gitShort</td><td>$match</td></tr>`n"
+            $hashTableRows += "<tr$cls><td>$branch</td><td class=`"mono`">$tfvcPath</td><td class=`"mono`">$gitPath</td><td class=`"mono`" title=`"$tfvcFull`">$tfvcShort</td><td class=`"mono`" title=`"$gitFull`">$gitShort</td><td>$match</td></tr>`n"
         }
 
         # Changeset mapping rows
@@ -229,6 +230,32 @@ function New-TfvcMigrationReport {
             <h2>Cleanups &amp; Auto-Resolutions</h2>
             $orphansList
             $secretsList
+        </section>
+"@
+        }
+
+        # Data Migration Plan Section
+        $migrationPlanSection = ""
+        if ($config.auditMetadata) {
+            $amScope = ConvertTo-HtmlSafe $config.auditMetadata.migrationScope
+            $amDataOwner = ConvertTo-HtmlSafe $config.auditMetadata.dataOwner
+            $amTechOwner = ConvertTo-HtmlSafe $config.auditMetadata.technicalOwner
+            $amAcceptance = ConvertTo-HtmlSafe $config.auditMetadata.acceptanceCriteria
+            $amExceptions = ConvertTo-HtmlSafe $config.auditMetadata.exceptionHandling
+
+            $migrationPlanSection = @"
+        <section>
+            <h2>1. Data Migration / Integrity Plan</h2>
+            <table>
+                <tbody>
+                    <tr><td style="width: 25%;"><strong>Migration Scope</strong></td><td>$amScope</td></tr>
+                    <tr><td><strong>Data Owner</strong></td><td>$amDataOwner</td></tr>
+                    <tr><td><strong>Technical Owner</strong></td><td>$amTechOwner</td></tr>
+                    <tr><td><strong>Acceptance Criteria</strong></td><td>$amAcceptance</td></tr>
+                    <tr><td><strong>Exception Handling</strong></td><td>$amExceptions</td></tr>
+                    <tr><td><strong>Execution Timeline</strong></td><td>$(ConvertTo-HtmlSafe $executionDuration)</td></tr>
+                </tbody>
+            </table>
         </section>
 "@
         }
@@ -495,7 +522,7 @@ function New-TfvcMigrationReport {
                <strong>$($summary.hashCheck.mismatched)</strong> mismatched.</p>
             <div class="table-scroll">
                 <table>
-                    <thead><tr><th>Branch</th><th>Path</th><th>TFVC SHA-256</th><th>Git SHA-256</th><th>Match</th></tr></thead>
+                    <thead><tr><th>Branch</th><th>TFVC Path</th><th>Git Path</th><th>TFVC SHA-256</th><th>Git SHA-256</th><th>Match</th></tr></thead>
                     <tbody>$hashTableRows</tbody>
                 </table>
             </div>

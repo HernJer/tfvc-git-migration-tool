@@ -60,7 +60,7 @@ function Test-TfvcMigration {
         $totalTfvc = 0; $totalGit = 0; $totalInBoth = 0
 
         $hashRows   = [System.Collections.Generic.List[string]]::new()
-        $hashRows.Add("Branch,Path,TfvcSHA256,GitSHA256,Match")
+        $hashRows.Add("Branch,TfvcPath,GitPath,TfvcSHA256,GitSHA256,Match")
         $mismatches = [System.Collections.Generic.List[object]]::new()
         $cleanedSecrets = [System.Collections.Generic.List[string]]::new()
         $matched    = 0
@@ -183,11 +183,11 @@ function Test-TfvcMigration {
                         } else { 
                             $mismatches.Add(@{ path = "${b}:$destPath"; tfvcHash = $tfvcHash; gitHash = $gitHash }) 
                         }
-                        $hashRows.Add("$b,$destPath,$tfvcHash,$gitHash,$isMatch")
+                        $hashRows.Add("$b,$serverPath,$destPath,$tfvcHash,$gitHash,$isMatch")
                     }
                     catch {
                         Write-MigrationLog "  Error hashing [$b] ${destPath}: $_" -Level ERROR -LogFile $logFile
-                        $hashRows.Add("$b,$destPath,ERROR,ERROR,False")
+                        $hashRows.Add("$b,$serverPath,$destPath,ERROR,ERROR,False")
                         $mismatches.Add(@{ path = "${b}:$destPath"; tfvcHash = 'ERROR'; gitHash = 'ERROR' })
                     }
                     finally {

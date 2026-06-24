@@ -52,7 +52,7 @@ function Invoke-ExportWorker {
     }
     catch {
         # Return the error details, making sure to include the fully qualified exception message
-        return @{ Error = "ERROR fetching details for changeset $($Changeset.changesetId): $_" }
+        return [PSCustomObject]@{ Error = "ERROR fetching details for changeset $($Changeset.changesetId): $_" }
     }
 
     # Filter to in-scope file changes
@@ -178,5 +178,6 @@ function Invoke-ExportWorker {
         comment     = $comment
         workItems   = $wiList
         changes     = @($scopedChanges)
+        Error       = $null
     }
 }

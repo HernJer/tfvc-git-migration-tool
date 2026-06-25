@@ -242,7 +242,7 @@ function Invoke-TfvcReplay {
     # --- Helper: apply one changeset's changes and commit on the current branch ---
 
     function Write-ChangesetCommit {
-        param($Changeset, $Changes)
+        param($Changeset, $Changes, $Branch)
         $cs = $Changeset
 
         # Pass 1: apply filesystem ops (deletes, rename-old removal) and collect
@@ -288,7 +288,7 @@ function Invoke-TfvcReplay {
                         $script:redactedSecrets.Add(@{
                             ChangesetId = $cs.changesetId
                             ServerPath  = $d.ServerPath
-                            Branch      = $b
+                            Branch      = $Branch
                         })
                     }
                 }
@@ -332,7 +332,7 @@ function Invoke-TfvcReplay {
         $commitMsg = "$body$trailer"
 
         $tempMsgFile = Join-Path $outputDir "commit-msg-$($cs.changesetId).tmp"
-        [System.IO.File]::WriteAllText($tempMsgFile, $commitMsg, [System.Text.Encoding]::UTF8)
+        Write-Utf8NoBom -Path $tempMsgFile -Content $commitMsg
 
         try {
             $env:GIT_AUTHOR_NAME      = $cs.author
@@ -366,14 +366,14 @@ function Invoke-TfvcReplay {
         $giPath = Join-Path $repoPath '.gitignore'
         if (Test-Path $giPath) { return }   # branch already has one (migrated from TFVC)
 
-        [System.IO.File]::WriteAllText($giPath, (Get-VisualStudioGitignore), [System.Text.Encoding]::UTF8)
+        Write-Utf8NoBom -Path $giPath -Content (Get-VisualStudioGitignore)
         $addOut = Invoke-Git -C $repoPath add -- .gitignore 2>&1
         if ($LASTEXITCODE -ne 0) { throw "git add .gitignore failed (exit $LASTEXITCODE): $addOut" }
 
         # Marker in the footer so verification doesn't flag this as an orphan commit.
         $msg = "Add .gitignore (Visual Studio template)`n`n---`nTfvc2Git-Generated: gitignore"
         $tmp = Join-Path $outputDir 'gitignore-msg.tmp'
-        [System.IO.File]::WriteAllText($tmp, $msg, [System.Text.Encoding]::UTF8)
+        Write-Utf8NoBom -Path $tmp -Content $msg
         try {
             $env:GIT_AUTHOR_NAME      = 'tfvc2git'
             $env:GIT_AUTHOR_EMAIL     = 'noreply@tfvc2git.local'
@@ -481,7 +481,7 @@ function Invoke-TfvcReplay {
                 Write-MigrationLog -Message "  [$b] changeset $($cs.changesetId)  ($bi / $bcount)" -LogFile $logFile
             }
 
-            Write-ChangesetCommit -Changeset $cs -Changes $item.changes
+            Write-ChangesetCommit -Changeset $cs -Changes $item.changes -Branch $b
             $totalReplayed++
 
             if ($totalReplayed % 50 -eq 0) {

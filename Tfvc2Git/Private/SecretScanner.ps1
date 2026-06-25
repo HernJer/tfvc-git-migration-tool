@@ -28,7 +28,7 @@ function Invoke-SecretScanAndClean {
             # which might break syntax.
             # Let's use Regex.Replace with a MatchEvaluator.
 
-            $regex = [System.Text.RegularExpressions.Regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bOr [System.Text.RegularExpressions.RegexOptions]::Compiled)
+            $regex = [System.Text.RegularExpressions.Regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
             
             if ($regex.IsMatch($content)) {
                 $content = $regex.Replace($content, {
@@ -50,7 +50,9 @@ function Invoke-SecretScanAndClean {
         }
 
         if ($modified) {
-            [System.IO.File]::WriteAllText($FilePath, $content, [System.Text.Encoding]::UTF8)
+            # No BOM - this content gets committed to git; a BOM would alter bytes
+            # beyond the redaction. (Self-contained so it works if dot-sourced.)
+            [System.IO.File]::WriteAllText($FilePath, $content, (New-Object System.Text.UTF8Encoding($false)))
             return $true
         }
     }

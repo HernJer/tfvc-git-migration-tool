@@ -54,14 +54,25 @@ function Invoke-ParallelDownload {
             }
             catch {
                 $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-                if ($code -eq 404) {
-                    New-Item -Path $OutputPath -ItemType File -Force | Out-Null
-                    return "WARNING_404"
-                }
-                if ($code -in 400, 401, 403 -or $i -eq $MaxRetries) {
+                # Hard client errors are never retried.
+                if ($code -in 400, 401, 403) {
                     throw "Download failed for ${ServerPath}: $($_.Exception.Message)"
                 }
-                Start-Sleep -Seconds ([Math]::Pow(2, $i))
+                # Retry transient failures - including a one-off 404 - with backoff,
+                # so a momentary blip isn't mistaken for a permanently-destroyed file.
+                if ($i -lt $MaxRetries) {
+                    Start-Sleep -Seconds ([Math]::Pow(2, $i))
+                    continue
+                }
+                # Retries exhausted.
+                if ($code -eq 404) {
+                    # A 404 that persists across every retry means the content is gone
+                    # from TFVC (a 'tf destroy' purges all versions). Write an empty
+                    # placeholder so the referencing changeset still appears in history.
+                    New-Item -Path $OutputPath -ItemType File -Force | Out-Null
+                    return "DESTROYED"
+                }
+                throw "Download failed for ${ServerPath}: $($_.Exception.Message)"
             }
         }
     }
@@ -70,6 +81,9 @@ function Invoke-ParallelDownload {
     $pool.Open()
     try {
         $errors = [System.Collections.Generic.List[string]]::new()
+        # ServerPaths whose content is gone from TFVC (persistent 404) - returned
+        # to the caller so the migration can record them in its audit trail.
+        $destroyed = [System.Collections.Generic.List[string]]::new()
 
         # Dispatch in batches so a huge changeset doesn't create thousands of
         # runspace handles at once; the pool still caps active downloads at $Concurrency.
@@ -97,8 +111,9 @@ function Invoke-ParallelDownload {
             foreach ($j in $jobs) {
                 try {
                     $res = $j.PS.EndInvoke($j.Handle)
-                    if ($res -contains "WARNING_404") {
-                        Write-Warning "File destroyed in TFVC (404 Not Found): $($j.ServerPath). Created empty placeholder."
+                    if ($res -contains "DESTROYED") {
+                        Write-Warning "Content purged in TFVC (persistent 404): $($j.ServerPath). Wrote empty placeholder."
+                        $destroyed.Add($j.ServerPath)
                     }
                 }
                 catch { $errors.Add("$($j.ServerPath): $($_.Exception.Message)") }
@@ -109,6 +124,8 @@ function Invoke-ParallelDownload {
         if ($errors.Count -gt 0) {
             throw "Parallel download failed for $($errors.Count) file(s):`n$([string]::Join([Environment]::NewLine, $errors))"
         }
+
+        return ,@($destroyed)
     }
     finally {
         $pool.Close()

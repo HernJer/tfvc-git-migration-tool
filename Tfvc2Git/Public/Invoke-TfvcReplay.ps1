@@ -320,7 +320,7 @@ function Invoke-TfvcReplay {
             }
         }
 
-        $addOut = Invoke-Git -C $repoPath add -A 2>&1
+        $addOut = Invoke-Git -C $repoPath add -A --force 2>&1
         if ($LASTEXITCODE -ne 0) {
             throw "git add failed for changeset $($cs.changesetId) (exit $LASTEXITCODE): $addOut"
         }

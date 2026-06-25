@@ -328,3 +328,19 @@ Describe 'Export-TfvcChangeset (Parallel Execution)' {
         }
     }
 }
+
+Describe 'Write-Utf8NoBom (private)' {
+    It 'writes UTF-8 content without a byte-order mark' {
+        InModuleScope $script:ModuleName {
+            $f = Join-Path ([System.IO.Path]::GetTempPath()) "tfvc2git-bom-$([guid]::NewGuid()).txt"
+            try {
+                Write-Utf8NoBom -Path $f -Content "hello world"
+                $bytes = [System.IO.File]::ReadAllBytes($f)
+                # A UTF-8 BOM is the byte sequence EF BB BF at the start of the file.
+                ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) | Should -BeFalse
+                [System.IO.File]::ReadAllText($f) | Should -Be "hello world"
+            }
+            finally { Remove-Item $f -Force -ErrorAction SilentlyContinue }
+        }
+    }
+}

@@ -106,6 +106,7 @@ function Invoke-TfvcReplay {
     }
 
     $script:redactedSecrets = [System.Collections.Generic.List[object]]::new()
+    $script:destroyedFiles  = [System.Collections.Generic.List[object]]::new()
 
     # --- LFS helpers ---
 
@@ -207,17 +208,21 @@ function Invoke-TfvcReplay {
         }
         
         if ($ParentBranch) {
-            Write-MigrationLog -Message "Basing branch '$Branch' on parent '$ParentBranch'" -LogFile $logFile
+            # Continue from the parent: inherit BOTH its history and its tree, then
+            # layer this branch's changesets on top. Branches are topologically
+            # ordered, so the parent is already built. We deliberately do NOT empty
+            # the tree here - that's what gives the child a real shared base.
+            Write-MigrationLog -Message "Basing branch '$Branch' on parent '$ParentBranch' (inherits its tree)" -LogFile $logFile
             Invoke-Git -C $repoPath checkout -b $Branch $ParentBranch 2>&1 | Out-Null
-        } else {
-            Invoke-Git -C $repoPath checkout --orphan $Branch 2>&1 | Out-Null
         }
-        
-        Invoke-Git -C $repoPath read-tree --empty 2>&1 | Out-Null
-        # Physically clear the working tree (except .git) so the branch starts empty.
-        Get-ChildItem -LiteralPath $repoPath -Force |
-            Where-Object { $_.Name -ne '.git' } |
-            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        else {
+            # Orphan root: start from a completely empty tree.
+            Invoke-Git -C $repoPath checkout --orphan $Branch 2>&1 | Out-Null
+            Invoke-Git -C $repoPath read-tree --empty 2>&1 | Out-Null
+            Get-ChildItem -LiteralPath $repoPath -Force |
+                Where-Object { $_.Name -ne '.git' } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 
     # --- Helper: persist checkpoint ---
@@ -273,9 +278,18 @@ function Invoke-TfvcReplay {
             }
         }
 
-        # Pass 2: download this changeset's files concurrently.
+        # Pass 2: download this changeset's files concurrently. Any whose content
+        # is gone from TFVC (persistent 404) come back as 'destroyed' so we can
+        # record them - they're written as empty placeholders by the downloader.
+        $destroyedPaths = @()
         if ($downloads.Count -gt 0) {
-            Invoke-ParallelDownload -Connection $conn -Items $downloads.ToArray() -Concurrency $downloadConcurrency
+            $destroyedPaths = @(Invoke-ParallelDownload -Connection $conn -Items $downloads.ToArray() -Concurrency $downloadConcurrency)
+        }
+        foreach ($dp in $destroyedPaths) {
+            $match = $downloads | Where-Object { $_.ServerPath -eq $dp } | Select-Object -First 1
+            $relPath = ''
+            if ($match) { $relPath = $match.OutputPath.Substring($repoPath.Length).TrimStart('\', '/').Replace('\', '/') }
+            $script:destroyedFiles.Add(@{ ChangesetId = $cs.changesetId; ServerPath = $dp; DestinationPath = $relPath; Branch = $Branch })
         }
 
         # Pass 2.5: Secret Scanning
@@ -523,5 +537,11 @@ function Invoke-TfvcReplay {
         $redactedSecretsFile = Join-Path $outputDir 'redacted-secrets.json'
         $script:redactedSecrets | ConvertTo-Json -Depth 5 | Set-Content $redactedSecretsFile -Encoding UTF8
         Write-MigrationLog -Message "Wrote redacted secrets report to $redactedSecretsFile" -LogFile $logFile
+    }
+
+    if ($script:destroyedFiles.Count -gt 0) {
+        $destroyedFile = Join-Path $outputDir 'destroyed-files.json'
+        Write-Utf8NoBom -Path $destroyedFile -Content ($script:destroyedFiles | ConvertTo-Json -Depth 5)
+        Write-MigrationLog -Message "Wrote $($script:destroyedFiles.Count) destroyed-file record(s) (content purged in TFVC) to $destroyedFile" -Level WARN -LogFile $logFile
     }
 }

@@ -150,7 +150,7 @@ function Test-TfvcMigration {
                 })
 
                 try {
-                    Invoke-ParallelDownload -Connection $conn `
+                    $null = Invoke-ParallelDownload -Connection $conn `
                         -Items @($batch | ForEach-Object { @{ ServerPath = $_.ServerPath; OutputPath = $_.TempFile } }) `
                         -Concurrency $downloadConcurrency
                 }

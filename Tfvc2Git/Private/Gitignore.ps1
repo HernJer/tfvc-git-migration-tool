@@ -116,6 +116,7 @@ nCrunchTemp_*
 *.snupkg
 **/[Pp]ackages/*
 !**/[Pp]ackages/build/
+!*.pls
 *.nuget.props
 *.nuget.targets
 
